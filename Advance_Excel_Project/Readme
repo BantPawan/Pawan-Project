@@ -1,0 +1,276 @@
+
+
+
+
+
+
+BANK LOAN REPORT
+
+
+
+#OBJECTIVE
+
+The goal of this report is to provide an in-depth analysis of our bank's lending performance, highlighting key metrics to drive data-based decisions. By examining various loan-related KPIs and tracking changes over time, we can better understand the health of our loan portfolio and fine-tune our lending strategies.
+
+
+
+
+
+
+
+DASHBOARD 1: SUMMARY
+
+
+
+To effectively assess the bank's loan performance, the following KPIs should be included:
+
+
+
+1. Total Loan Applications: Track the total number of loan applications received within a specific period. This includes Month-to-Date (MTD) Loan Applications and a Month-over-Month (MoM) comparison.
+
+   
+
+2. Total Funded Amount: Monitor the overall amount disbursed in loans, with an emphasis on MTD totals and MoM variations.
+
+
+
+3. Total Amount Received: Measure the total repayments received from borrowers, analyzing MTD values and MoM changes to assess cash flow.
+
+
+
+4. Average Interest Rate: Calculate the average interest rate across all loans, observing both MTD and MoM shifts for deeper cost analysis.
+
+
+
+5. Average Debt-to-Income (DTI) Ratio: Determine the average DTI of borrowers to evaluate financial stability, including MoM fluctuations and MTD comparisons.
+
+
+
+
+
+
+
+KPI Segmentation: Good Loans vs. Bad Loans
+
+
+
+We need to differentiate between 'Good Loans' and 'Bad Loans' to better understand the performance of our loan portfolio.
+
+
+
+Good Loan KPIs:
+
+Good Loan Application Percentage: The percentage of applications that fall under 'Good Loans' (loans that are 'Fully Paid' or 'Current').
+
+Good Loan Applications: The total number of 'Good Loan' applications.
+
+Good Loan Funded Amount: The total amount disbursed for 'Good Loans.'
+
+Good Loan Total Received Amount: Total repayments made on 'Good Loans.'
+
+
+
+Bad Loan KPIs:
+
+Bad Loan Application Percentage: The percentage of applications classified as 'Bad Loans' (loans that are 'Charged Off').
+
+Bad Loan Applications: The total number of applications under the 'Bad Loan' category.
+
+Bad Loan Funded Amount: Total disbursements for 'Bad Loans.'
+
+Bad Loan Total Received Amount: Total repayments from 'Bad Loans.'
+
+
+
+
+
+
+
+Loan Status Grid View
+
+
+
+A comprehensive grid view report categorizing loans by 'Loan Status' will allow us to evaluate core metrics like 'Total Loan Applications,' 'Total Funded Amount,' 'Total Amount Received,' and MTD comparisons for various categories. This view will help us gain quick insights into our loan portfolio's health across different statuses.
+
+
+
+
+
+
+
+DASHBOARD 2: OVERVIEW
+
+
+
+The second dashboard provides a visual representation of loan metrics and trends across different segments, enhancing data visibility for strategic decision-making.
+
+
+
+1. Monthly Trends (Line Chart):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   Visualize month-over-month changes based on the issue date, showcasing trends and seasonal variations in loan applications and payments.
+
+
+
+2. Regional Analysis (Filled Map):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   A geographic breakdown of loan activities across states, helping us identify regional loan demand and performance disparities.
+
+
+
+3. Loan Term Analysis (Donut Chart):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   Visualize the distribution of loans across different loan terms (e.g., 36 months, 60 months), helping assess the popularity of various term lengths.
+
+
+
+4. Employment Length Analysis (Bar Chart):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   Analyze loan data based on borrowers' employment duration, offering insights into how job stability affects loan applications.
+
+
+
+5. Loan Purpose Breakdown (Bar Chart):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   Break down loans by their purpose, such as debt consolidation or credit card refinancing, to identify common borrowing reasons.
+
+
+
+6. Home Ownership Analysis (Tree Map):
+
+   Metrics: 'Total Loan Applications,' 'Total Funded Amount,' and 'Total Amount Received'
+
+   A hierarchical view of loan data based on home ownership categories (e.g., own, rent, mortgage), showing the impact of housing status on loan applications.
+
+
+
+
+
+
+
+DASHBOARD 3: DETAILS
+
+
+
+This dashboard consolidates all key metrics into a detailed overview, offering users easy access to essential loan information. It serves as a quick reference for loan data, borrower profiles, and loan performance insights.
+
+
+
+#Objective
+
+The aim is to provide a user-friendly interface for accessing critical loan metrics, helping users navigate detailed loan data efficiently.
+
+
+
+
+
+
+
+BANK LOAN REPORT: TERMINOLOGIES
+
+
+
+Key Fields:
+
+
+
+1. Loan ID:  
+
+   Purpose: A unique identifier for each loan, facilitating easy tracking and management.
+
+   Bank Use: Helps in tracking the life cycle of loans, repayments, and customer inquiries.
+
+
+
+2. Address State:  
+
+   Purpose: Represents the borrower's state, essential for assessing geographic risk.
+
+   Bank Use: Enables regional loan demand analysis and helps tailor risk management strategies.
+
+
+
+3. Employee Length:  
+
+   Purpose: Shows how long the borrower has been employed, offering insights into job stability.
+
+   Bank Use: Lenders consider longer employment history as an indicator of lower default risk.
+
+
+
+4. Employee Title:  
+
+   Purpose: Specifies the borrower’s job title.
+
+   Bank Use: Used to verify income and assess the borrower’s financial capacity.
+
+
+
+5. Grade and Sub Grade:  
+
+   Purpose: Represents the loan’s risk classification.
+
+   Bank Use: Helps price loans according to risk and set appropriate interest rates.
+
+
+
+6. Home Ownership:  
+
+   Purpose: Indicates the borrower’s home ownership status.
+
+   Bank Use: Used to assess borrower stability and potential collateral.
+
+
+
+7. Issue Date:  
+
+   Purpose: The date the loan was originated.
+
+   Bank Use: Helps in tracking loan aging and managing interest calculations.
+
+
+
+8. Loan Status:  
+
+   Purpose: The current state of the loan (e.g., fully paid, current, default).
+
+   Bank Use: Critical for tracking loan performance and categorizing loans for risk analysis.
+
+
+
+9. Annual Income:  
+
+   Purpose: The borrower’s yearly income.
+
+   Bank Use: Key for assessing the borrower’s repayment capacity and determining loan eligibility.
+
+
+
+10. DTI (Debt-to-Income Ratio):  
+
+    Purpose: Measures a borrower’s debt burden relative to their income.
+
+    Bank Use: Used to evaluate how much additional debt a borrower can manage.
+
+
+
+11. Interest Rate and Loan Amount:  
+
+    Purpose: These fields represent the cost of borrowing and the total loaned sum.
+
+    Bank Use: Essential for structuring loan agreements and assessing profitability.
+
+
+
+
+
