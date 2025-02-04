@@ -1,25 +1,25 @@
-☕ Coffee Shop Sales Analysis (SQL)
+# ☕ Coffee Shop Sales Analysis (SQL)
 
 This repository contains SQL queries for data cleaning, KPI calculations, trend analysis, and sales insights. The goal is to analyze transactions and derive meaningful business metrics.
 
 
 ---
 
-📌 Table of Contents
+## 📌 Table of Contents
 
-📊 Data Cleaning & Formatting
+## 📊 Data Cleaning & Formatting
 
-📈 KPI Calculations & Sales Analysis
+## 📈 KPI Calculations & Sales Analysis
 
-📅 Sales Trends & Comparisons
+## 📅 Sales Trends & Comparisons
 
-📊 Category-Wise Sales Insights
+## 📊 Category-Wise Sales Insights
 
 
 
 ---
 
-📊 Data Cleaning & Formatting
+## 📊 Data Cleaning & Formatting
 
 -- Convert `transaction_date` column to proper date format
 UPDATE coffee_shop_sales
@@ -43,15 +43,15 @@ DESCRIBE coffee_shop_sales;
 
 ---
 
-📈 KPI Calculations & Sales Analysis
+## 📈 KPI Calculations & Sales Analysis
 
-Total Sales for May
+### Total Sales for May
 
 SELECT ROUND(SUM(unit_price * transaction_qty)) AS Total_Sales
 FROM coffee_shop_sales
 WHERE MONTH(transaction_date) = 5;
 
-Total Sales Month-on-Month (MoM) Growth
+### Total Sales Month-on-Month (MoM) Growth
 
 SELECT 
     MONTH(transaction_date) AS month,
@@ -65,13 +65,13 @@ WHERE MONTH(transaction_date) IN (4, 5)
 GROUP BY MONTH(transaction_date)
 ORDER BY MONTH(transaction_date);
 
-Total Orders for May
+### Total Orders for May
 
 SELECT COUNT(transaction_id) AS Total_Orders
 FROM coffee_shop_sales 
 WHERE MONTH(transaction_date) = 5;
 
-Total Orders MoM Growth
+### Total Orders MoM Growth
 
 SELECT 
     MONTH(transaction_date) AS month,
@@ -85,13 +85,13 @@ WHERE MONTH(transaction_date) IN (4, 5)
 GROUP BY MONTH(transaction_date)
 ORDER BY MONTH(transaction_date);
 
-Total Quantity Sold for May
+### Total Quantity Sold for May
 
 SELECT SUM(transaction_qty) AS Total_Quantity_Sold
 FROM coffee_shop_sales
 WHERE MONTH(transaction_date) = 5;
 
-Total Quantity Sold MoM Growth
+### Total Quantity Sold MoM Growth
 
 SELECT 
     MONTH(transaction_date) AS month,
@@ -108,9 +108,9 @@ ORDER BY MONTH(transaction_date);
 
 ---
 
-📅 Sales Trends & Comparisons
+## 📅 Sales Trends & Comparisons
 
-Daily Sales, Quantity, and Orders for a Specific Date
+### Daily Sales, Quantity, and Orders for a Specific Date
 
 SELECT 
     SUM(unit_price * transaction_qty) AS total_sales,
@@ -119,7 +119,7 @@ SELECT
 FROM coffee_shop_sales
 WHERE transaction_date = '2023-05-18';
 
-Average Daily Sales in May
+## Average Daily Sales in May
 
 SELECT AVG(total_sales) AS average_sales
 FROM (
@@ -129,7 +129,7 @@ FROM (
     GROUP BY transaction_date
 ) AS internal_query;
 
-Daily Sales Breakdown for May
+### Daily Sales Breakdown for May
 
 SELECT 
     DAY(transaction_date) AS day_of_month,
@@ -139,7 +139,7 @@ WHERE MONTH(transaction_date) = 5
 GROUP BY DAY(transaction_date)
 ORDER BY DAY(transaction_date);
 
-Daily Sales vs Average Comparison
+### Daily Sales vs Average Comparison
 
 SELECT 
     day_of_month,
@@ -160,7 +160,7 @@ FROM (
 ) AS sales_data
 ORDER BY day_of_month;
 
-Weekday vs Weekend Sales
+### Weekday vs Weekend Sales
 
 SELECT 
     CASE 
@@ -172,7 +172,7 @@ FROM coffee_shop_sales
 WHERE MONTH(transaction_date) = 5
 GROUP BY day_type;
 
-Sales by Hour of the Day
+### Sales by Hour of the Day
 
 SELECT 
     HOUR(transaction_time) AS Hour_of_Day,
@@ -182,7 +182,7 @@ WHERE MONTH(transaction_date) = 5
 GROUP BY HOUR(transaction_time)
 ORDER BY HOUR(transaction_time);
 
-Sales by Day of the Week
+### Sales by Day of the Week
 
 SELECT 
     CASE 
@@ -202,9 +202,9 @@ GROUP BY Day_of_Week;
 
 ---
 
-📊 Category-Wise Sales Insights
+## 📊 Category-Wise Sales Insights
 
-Sales by Store Location
+### Sales by Store Location
 
 SELECT store_location, 
     SUM(unit_price * transaction_qty) AS Total_Sales
@@ -213,7 +213,7 @@ WHERE MONTH(transaction_date) = 5
 GROUP BY store_location
 ORDER BY Total_Sales DESC;
 
-Sales by Product Category
+### Sales by Product Category
 
 SELECT product_category, 
     ROUND(SUM(unit_price * transaction_qty), 1) AS Total_Sales
@@ -222,7 +222,7 @@ WHERE MONTH(transaction_date) = 5
 GROUP BY product_category
 ORDER BY Total_Sales DESC;
 
-Top 10 Products by Sales
+### Top 10 Products by Sales
 
 SELECT product_type, 
     ROUND(SUM(unit_price * transaction_qty), 1) AS Total_Sales
@@ -232,7 +232,7 @@ GROUP BY product_type
 ORDER BY Total_Sales DESC
 LIMIT 10;
 
-Sales for Tuesday at 8 AM
+### Sales for Tuesday at 8 AM
 
 SELECT 
     ROUND(SUM(unit_price * transaction_qty)) AS Total_Sales,
