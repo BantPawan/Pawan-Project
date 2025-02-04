@@ -21,27 +21,27 @@ This repository contains SQL queries for data cleaning, KPI calculations, trend 
 
 ## 📊 Data Cleaning & Formatting
 
-```sql
+```
 -- Convert `transaction_date` column to proper date format
 UPDATE coffee_shop_sales
 SET transaction_date = STR_TO_DATE(transaction_date, '%d-%m-%Y');
 
-```sql
+```
 -- Alter `transaction_date` column to date data type
 ALTER TABLE coffee_shop_sales
 MODIFY COLUMN transaction_date DATE;
 
-```sql
+```
 -- Convert `transaction_time` column to proper time format
 UPDATE coffee_shop_sales
 SET transaction_time = STR_TO_DATE(transaction_time, '%H:%i:%s');
 
-```sql
+```
 -- Alter `transaction_time` column to time data type
 ALTER TABLE coffee_shop_sales
 MODIFY COLUMN transaction_time TIME;
 
-```sql
+```
 -- Check data types of different columns
 DESCRIBE coffee_shop_sales;
 
@@ -49,15 +49,15 @@ DESCRIBE coffee_shop_sales;
 ---
 
 ## 📈 KPI Calculations & Sales Analysis
-
+```
 ### Total Sales for May
-```sql
+```
 SELECT ROUND(SUM(unit_price * transaction_qty)) AS Total_Sales
 FROM coffee_shop_sales
 WHERE MONTH(transaction_date) = 5;
-
+```
 ### Total Sales Month-on-Month (MoM) Growth
-```sql
+```
 SELECT 
     MONTH(transaction_date) AS month,
     ROUND(SUM(unit_price * transaction_qty)) AS total_sales,
@@ -69,15 +69,15 @@ FROM coffee_shop_sales
 WHERE MONTH(transaction_date) IN (4, 5)
 GROUP BY MONTH(transaction_date)
 ORDER BY MONTH(transaction_date);
-
+```
 ### Total Orders for May
-```sql
+```
 SELECT COUNT(transaction_id) AS Total_Orders
 FROM coffee_shop_sales 
 WHERE MONTH(transaction_date) = 5;
-
+```
 ### Total Orders MoM Growth
-```sql
+```
 SELECT 
     MONTH(transaction_date) AS month,
     ROUND(COUNT(transaction_id)) AS total_orders,
@@ -89,15 +89,15 @@ FROM coffee_shop_sales
 WHERE MONTH(transaction_date) IN (4, 5)
 GROUP BY MONTH(transaction_date)
 ORDER BY MONTH(transaction_date);
-
+```
 ### Total Quantity Sold for May
-```sql
+```
 SELECT SUM(transaction_qty) AS Total_Quantity_Sold
 FROM coffee_shop_sales
 WHERE MONTH(transaction_date) = 5;
 
 ### Total Quantity Sold MoM Growth
-```sql
+```
 SELECT 
     MONTH(transaction_date) AS month,
     ROUND(SUM(transaction_qty)) AS total_quantity_sold,
