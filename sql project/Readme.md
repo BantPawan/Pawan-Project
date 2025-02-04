@@ -21,7 +21,7 @@ This repository contains SQL queries for data cleaning, KPI calculations, trend 
 
 ## 📊 Data Cleaning & Formatting
 
-```
+```sql
 -- Convert `transaction_date` column to proper date format
 UPDATE coffee_shop_sales
 SET transaction_date = STR_TO_DATE(transaction_date, '%d-%m-%Y');
