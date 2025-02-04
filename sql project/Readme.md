@@ -25,8 +25,8 @@ This repository contains SQL queries for data cleaning, KPI calculations, trend 
 -- Convert `transaction_date` column to proper date format
 UPDATE coffee_shop_sales
 SET transaction_date = STR_TO_DATE(transaction_date, '%d-%m-%Y');
-
 ```
+```sql
 -- Alter `transaction_date` column to date data type
 ALTER TABLE coffee_shop_sales
 MODIFY COLUMN transaction_date DATE;
