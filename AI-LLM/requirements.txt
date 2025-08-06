@@ -1,0 +1,11 @@
+streamlit
+langchain
+langchain-community
+langchain-huggingface
+faiss-cpu
+transformers
+torch
+bitsandbytes
+PyPDF2
+python-dotenv
+pyperclip
