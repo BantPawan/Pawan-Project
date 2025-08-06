@@ -45,7 +45,6 @@ graph TD
 - Hugging Face API token (free account)
 - ngrok account (free tier)
 
-```
 
 ### Running Locally
 ```bash
