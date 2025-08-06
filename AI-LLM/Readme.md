@@ -82,7 +82,17 @@ research-paper-qa/
 ├── requirements.txt      # Dependencies
 ├── .env.example          # Environment template
 ```
+
+![2 app(image)](https://github.com/user-attachments/assets/0bb4ea89-120b-4752-8691-f6f51b09dc58)
+
 ![1 app(image)](https://github.com/user-attachments/assets/1d73c6d7-bc3d-4245-9e92-01c73c1eb99e)
+
+![3 app(image)](https://github.com/user-attachments/assets/35ffbc3d-7dd4-4ed9-95f9-a432cfb1c146)
+
+![4 app(image)](https://github.com/user-attachments/assets/478f72b4-2927-448a-905e-59ab37282386)
+
+
+
 ## Sample Output 🖥️
 ### Structured Q&A Response:
 ```markdown
