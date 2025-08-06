@@ -82,14 +82,11 @@ research-paper-qa/
 ├── requirements.txt      # Dependencies
 ├── .env.example          # Environment template
 ```
-
+![1 app(image)](https://github.com/user-attachments/assets/1d73c6d7-bc3d-4245-9e92-01c73c1eb99e)
 ## Sample Output 🖥️
 ### Structured Q&A Response:
 ```markdown
 ## Research Paper Analysis
-![1 app(image)](https://github.com/user-attachments/assets/1d73c6d7-bc3d-4245-9e92-01c73c1eb99e)
-
-
 
 ### 🔑 Key Concept 
 Transformers replace RNNs with self-attention mechanisms...
