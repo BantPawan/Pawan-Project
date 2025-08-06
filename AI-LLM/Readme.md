@@ -1,8 +1,5 @@
-Here's a professional, enhanced README for your GitHub repository that showcases your technical skills and project effectively:
 
----
-
-# Research Paper Q&A Assistant 🤖📚  
+# Research Paper Q&A Assistant 
 *Advanced NLP Document Analysis System*
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://streamlit.io)
@@ -48,16 +45,6 @@ graph TD
 - Hugging Face API token (free account)
 - ngrok account (free tier)
 
-### Installation
-```bash
-# Clone repository
-git clone https://github.com/<your-username>/research-paper-qa.git
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-echo "HUGGINGFACEHUB_API_TOKEN='your_hf_token'" > .env
 ```
 
 ### Running Locally
