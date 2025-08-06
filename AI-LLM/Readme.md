@@ -82,16 +82,13 @@ research-paper-qa/
 ├── requirements.txt      # Dependencies
 ├── .env.example          # Environment template
 ```
+![11](https://github.com/user-attachments/assets/d73ef8f3-392e-4d91-bf91-cb7d6a4228c8)
 
-![2 app(image)](https://github.com/user-attachments/assets/0bb4ea89-120b-4752-8691-f6f51b09dc58)
+![12](https://github.com/user-attachments/assets/1c2e143f-1dfc-4b5c-b82f-73b6f7b48c69)
 
-![1 app(image)](https://github.com/user-attachments/assets/1d73c6d7-bc3d-4245-9e92-01c73c1eb99e)
+![13](https://github.com/user-attachments/assets/8ca4748d-be1e-4a2f-9c37-3ba2213d56b6)
 
-![3 app(image)](https://github.com/user-attachments/assets/35ffbc3d-7dd4-4ed9-95f9-a432cfb1c146)
-
-![4 app(image)](https://github.com/user-attachments/assets/478f72b4-2927-448a-905e-59ab37282386)
-
-
+![14](https://github.com/user-attachments/assets/1e913a4b-73ff-48c5-adbb-fd25cf67df39)
 
 ## Sample Output 🖥️
 ### Structured Q&A Response:
