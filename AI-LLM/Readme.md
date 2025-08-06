@@ -81,8 +81,6 @@ research-paper-qa/
 ├── ngrok_deploy.py       # Cloud deployment script
 ├── requirements.txt      # Dependencies
 ├── .env.example          # Environment template
-├── notebooks/            # Development notebooks
-└── assets/               # Sample outputs
 ```
 
 ## Sample Output 🖥️
@@ -106,17 +104,3 @@ Allows modeling dependencies without regard to distance...
 3. Long-range dependency handling...
 ```
 
-## Future Enhancements 🔮
-- [ ] Support LaTeX equation rendering
-- [ ] Paper metadata extraction
-- [ ] Multi-document comparison
-- [ ] Citation graph visualization
-
----
-
-**Note for Resume**: This project demonstrates expertise in NLP, model optimization, and full-stack ML development. Highlight these key skills:
-- Implemented RAG architecture for document analysis
-- Optimized LLMs for resource-constrained environments
-- Designed academic-focused output schemas
-- Built production-ready interface with error handling
-- Integrated multiple NLP components into cohesive system
