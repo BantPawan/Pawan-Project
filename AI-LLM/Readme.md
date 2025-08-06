@@ -87,13 +87,8 @@ research-paper-qa/
 ### Structured Q&A Response:
 ```markdown
 ## Research Paper Analysis
-![2 app(image)](https://github.com/user-attachments/assets/ac2c1e19-080f-4f43-b42a-d92b4beebb55)
+![1 app(image)](https://github.com/user-attachments/assets/1d73c6d7-bc3d-4245-9e92-01c73c1eb99e)
 
-![1 app(image)](https://github.com/user-attachments/assets/d2c01232-4570-41f2-b040-bcdf8eb52c24)
-
-![3 app(image)](https://github.com/user-attachments/assets/5a39ac4a-189a-4351-a17c-09fe25726d0a)
-
-![4 app(image)](https://github.com/user-attachments/assets/db3ae5de-a2d8-4f61-8d98-5c01018c7166)
 
 
 ### 🔑 Key Concept 
