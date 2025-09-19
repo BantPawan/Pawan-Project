@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: real-estate-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$PORT
+
+  - type: web
+    name: real-estate-frontend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app/Main_Page.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS false
