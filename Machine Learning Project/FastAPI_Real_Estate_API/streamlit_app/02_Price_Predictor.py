@@ -1,33 +1,45 @@
+# 02_Price_Predictor.py
 import streamlit as st
-import requests
+import joblib
 import pandas as pd
+import numpy as np
 import os
-import json
+import pickle
 
+# Define base directory and file paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "Dataset", "pipeline_compressed.pkl")
+DATA_PATH = os.path.join(BASE_DIR, "Dataset", "df.pkl")
+
+# Load DataFrame
+if os.path.exists(DATA_PATH):
+    with open(DATA_PATH, "rb") as f:
+        df = pickle.load(f)
+else:
+    st.error(f"Data file not found at {DATA_PATH}")
+    raise FileNotFoundError(f"Data file not found at {DATA_PATH}")
+
+# Load model pipeline
+if os.path.exists(MODEL_PATH):
+    pipeline = joblib.load(MODEL_PATH)
+else:
+    st.error(f"Model file not found at {MODEL_PATH}")
+    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+
+# --- Your predictor UI logic here ---
+# ----------------------------
+# Utility
+# ----------------------------
+def format_price(value: float) -> str:
+    return f"₹ {value:,.2f} Cr"
+
+# ----------------------------
+# Streamlit UI
+# ----------------------------
 st.set_page_config(page_title="Price Predictor", page_icon="🏠")
 st.title("🏠 Real Estate Price Predictor")
 st.write("Enter property details below to predict the price range.")
 
-# FastAPI backend URL (will be updated for Render deployment)
-API_URL = os.getenv("FASTAPI_URL", "http://localhost:8000/predict_price")
-
-# Load dataset for dropdown options
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH = os.path.join(BASE_DIR, "Dataset", "df.pkl")
-
-if os.path.exists(DATASET_PATH):
-    with open(DATASET_PATH, "rb") as f:
-        df = pd.read_pickle(f)
-    st.success("✅ Dataset loaded successfully")
-else:
-    st.error("❌ df.pkl not found in Dataset folder")
-    st.stop()
-
-# Utility function to format price
-def format_price(value: float) -> str:
-    return f"₹ {value:,.2f} Cr"
-
-# Streamlit UI
 col1, col2 = st.columns(2)
 
 with col1:
@@ -48,33 +60,21 @@ luxury_category = st.selectbox("Luxury Category", df["luxury_category"].unique()
 floor_category = st.selectbox("Floor Category", df["floor_category"].unique())
 
 # Collect input
-input_data = {
-    "property_type": property_type,
-    "sector": sector,
-    "bedrooms": float(bedroom),
-    "bathroom": float(bathroom),
-    "balcony": balcony,
-    "property_age": age_possession,
-    "built_up_area": float(built_up_area),
-    "servant_room": float(servant_room),
-    "store_room": float(store_room),
-    "furnishing_type": furnishing_type,
-    "luxury_category": luxury_category,
-    "floor_category": floor_category
-}
+input_data = pd.DataFrame([[
+    property_type, sector, bedroom, bathroom, balcony, age_possession,
+    built_up_area, servant_room, store_room, furnishing_type,
+    luxury_category, floor_category
+]], columns=[
+    "property_type", "sector", "bedRoom", "bathroom", "balcony",
+    "agePossession", "built_up_area", "servant room", "store room",
+    "furnishing_type", "luxury_category", "floor_category"
+])
 
 # Prediction
 if st.button("💰 Predict Price"):
     try:
-        # Send POST request to FastAPI
-        response = requests.post(API_URL, json=input_data)
-        response.raise_for_status()  # Raise exception for bad status codes
-        result = response.json()
-
-        # Display results
-        low_price = result["low_price_cr"]
-        high_price = result["high_price_cr"]
-        formatted_range = result["formatted_range"]
-        st.success(f"Predicted Price Range: {formatted_range}")
-    except requests.exceptions.RequestException as e:
+        base_price = np.expm1(pipeline.predict(input_data))[0]
+        low_price, high_price = base_price - 0.22, base_price + 0.22
+        st.success(f"Predicted Price Range: {format_price(low_price)} - {format_price(high_price)}")
+    except Exception as e:
         st.error(f"Prediction failed: {str(e)}")
