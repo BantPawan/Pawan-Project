@@ -60,26 +60,11 @@ class RealEstatePortfolio {
             link.addEventListener('click', (e) => {
                 navLinks.forEach(l => l.classList.remove('active'));
                 e.target.classList.add('active');
-                // Reload wordcloud when Analysis section is clicked
-                if (e.target.getAttribute('href') === '#analysis') {
-                    this.loadWordcloud();
-                }
             });
         });
 
         // Window scroll for navbar effect
         window.addEventListener('scroll', this.handleScroll.bind(this));
-
-        // IntersectionObserver for Analysis section
-        const analysisSection = document.getElementById('analysis');
-        if (analysisSection) {
-            const observer = new IntersectionObserver((entries) => {
-                if (entries[0].isIntersecting) {
-                    this.loadWordcloud();
-                }
-            }, { threshold: 0.1 });
-            observer.observe(analysisSection);
-        }
     }
 
     handleScroll() {
@@ -297,32 +282,16 @@ class RealEstatePortfolio {
 
     async loadWordcloud() {
         try {
-            const wordcloudImg = document.getElementById('wordcloud-img');
-            if (!wordcloudImg) {
-                console.error('Wordcloud image element not found');
-                this.showNotification('Wordcloud container not found. Please check the page structure.', 'error');
-                return;
-            }
-
             const response = await fetch(`${this.apiBaseUrl}/api/analysis/wordcloud`);
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || `HTTP error! status: ${response.status}`);
-            }
-            
+            if (!response.ok) throw new Error('Failed to load wordcloud data');
             const data = await response.json();
-            if (!data.image_url || !data.image_url.startsWith('data:image/png;base64,')) {
-                console.error('Invalid wordcloud image URL:', data);
-                throw new Error('Invalid wordcloud image data');
-            }
-
-            wordcloudImg.src = data.image_url;
-            wordcloudImg.style.display = 'block';
-            console.log('Wordcloud loaded successfully');
-            this.showNotification('Wordcloud loaded successfully!', 'success');
+            
+            // Note: Wordclouds are tricky in Plotly, using a simple text representation
+            const wordcloudDiv = document.getElementById('wordcloud');
+            wordcloudDiv.innerHTML = `<img src="${data.image_url}" style="width:100%; height:400px;" />`;
         } catch (error) {
             console.error('Error loading wordcloud:', error);
-            this.showNotification('Failed to load wordcloud: ' + error.message, 'error');
+            this.showNotification('Failed to load wordcloud. Please try again.', 'error');
         }
     }
 
@@ -564,7 +533,7 @@ class RealEstatePortfolio {
             style.id = 'notification-styles';
             style.textContent = `
                 @keyframes slideInRight {
-                    from { transform: translateX(100%); opacity: 0; }
+                    from { transforma: translateX(100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
                 @keyframes slideOutRight {
