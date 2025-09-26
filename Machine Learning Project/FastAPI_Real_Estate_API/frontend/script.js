@@ -255,8 +255,14 @@ class RealEstatePortfolio {
             if (!response.ok) throw new Error('Failed to load geomap data');
             const data = await response.json();
             
+            // Calculate center point for map
+            const avgLat = data.latitude.length > 0 ? 
+                data.latitude.reduce((a, b) => a + b, 0) / data.latitude.length : 28.61;
+            const avgLon = data.longitude.length > 0 ? 
+                data.longitude.reduce((a, b) => a + b, 0) / data.longitude.length : 77.23;
+            
             Plotly.newPlot('geomap', [{
-                type: 'scattermap',
+                type: 'scattermapbox',
                 lat: data.latitude,
                 lon: data.longitude,
                 mode: 'markers',
@@ -269,10 +275,14 @@ class RealEstatePortfolio {
                 text: data.sectors,
                 hoverinfo: 'text'
             }], {
-                map: { style: 'open-street-map' },
+                mapbox: {
+                    style: "open-street-map",
+                    center: { lat: avgLat, lon: avgLon },
+                    zoom: 10
+                },
+                margin: { t: 0, b: 0, l: 0, r: 0 },
                 width: 1200,
-                height: 700,
-                zoom: 10
+                height: 700
             });
         } catch (error) {
             console.error('Error loading geomap:', error);
@@ -286,9 +296,8 @@ class RealEstatePortfolio {
             if (!response.ok) throw new Error('Failed to load wordcloud data');
             const data = await response.json();
             
-            // Note: Wordclouds are tricky in Plotly, using a simple text representation
             const wordcloudDiv = document.getElementById('wordcloud');
-            wordcloudDiv.innerHTML = `<img src="${data.image_url}" style="width:100%; height:400px;" />`;
+            wordcloudDiv.innerHTML = `<img src="${data.image_url}" style="width:100%; height:400px;" alt="Property Features Wordcloud" />`;
         } catch (error) {
             console.error('Error loading wordcloud:', error);
             this.showNotification('Failed to load wordcloud. Please try again.', 'error');
@@ -335,7 +344,7 @@ class RealEstatePortfolio {
             
             Plotly.newPlot('bhk-pie', [{
                 type: 'pie',
-                labels: data.bedrooms,
+                labels: data.bedrooms.map(b => `${b} BHK`),
                 values: data.counts,
                 textinfo: 'percent+label'
             }], {
@@ -394,7 +403,7 @@ class RealEstatePortfolio {
                 return;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/recommender/location-search?location=${location}&radius=${radius}`);
+            const response = await fetch(`${this.apiBaseUrl}/api/recommender/location-search?location=${encodeURIComponent(location)}&radius=${radius}`);
             if (!response.ok) throw new Error('Failed to search locations');
             const results = await response.json();
             
@@ -425,7 +434,7 @@ class RealEstatePortfolio {
                 return;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/recommender/recommend?property_name=${apartment}`);
+            const response = await fetch(`${this.apiBaseUrl}/api/recommender/recommend?property_name=${encodeURIComponent(apartment)}`);
             if (!response.ok) throw new Error('Failed to get recommendations');
             const results = await response.json();
             
@@ -533,7 +542,7 @@ class RealEstatePortfolio {
             style.id = 'notification-styles';
             style.textContent = `
                 @keyframes slideInRight {
-                    from { transforma: translateX(100%); opacity: 0; }
+                    from { transform: translateX(100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
                 @keyframes slideOutRight {
@@ -544,20 +553,6 @@ class RealEstatePortfolio {
                     0% { transform: scale(1); }
                     50% { transform: scale(1.02); }
                     100% { transform: scale(1); }
-                }
-                .recommend-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 1rem;
-                }
-                .recommend-table th, .recommend-table td {
-                    border: 1px solid var(--gray-light);
-                    padding: 0.5rem;
-                    text-align: left;
-                }
-                .recommend-table th {
-                    background: var(--primary);
-                    color: white;
                 }
             `;
             document.head.appendChild(style);
