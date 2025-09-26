@@ -64,6 +64,7 @@ try:
     data_viz = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
     logger.info(f"data_viz1.csv loaded with columns: {data_viz.columns.tolist()}")
     feature_text = load_pickle("feature_text.pkl")
+    logger.info(f"feature_text type: {type(feature_text)}, length: {len(str(feature_text))}")
     location_df = load_pickle("location_distance.pkl")
     cosine_sim1 = load_pickle("cosine_sim1.pkl")
     cosine_sim2 = load_pickle("cosine_sim2.pkl")
@@ -250,6 +251,10 @@ async def get_geomap():
 @app.get("/api/analysis/wordcloud")
 async def get_wordcloud():
     try:
+        if not isinstance(feature_text, str) or not feature_text.strip():
+            logger.error("feature_text is not a valid non-empty string")
+            raise ValueError("Invalid feature_text: must be a non-empty string")
+        
         wordcloud = WordCloud(
             width=800,
             height=800,
@@ -269,9 +274,10 @@ async def get_wordcloud():
         img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         plt.close(fig)
         
+        logger.info("Wordcloud generated successfully")
         return {"image_url": f"data:image/png;base64,{img_base64}"}
     except Exception as e:
-        logger.error(f"Error generating wordcloud: {e}")
+        logger.error(f"Error generating wordcloud: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating wordcloud: {str(e)}")
 
 @app.get("/api/analysis/area-vs-price")
