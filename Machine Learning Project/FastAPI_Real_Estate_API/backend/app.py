@@ -5,6 +5,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import joblib, pickle, pandas as pd, numpy as np, sklearn, os
 from datetime import datetime
+import plotly.express as px
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import io
+import base64
 
 print(f"✅ scikit-learn runtime version: {sklearn.__version__}")
 
@@ -14,7 +19,7 @@ DATASET_PATH = os.path.join(BASE_DIR, "Dataset")
 
 app = FastAPI(
     title="Real Estate AI Analytics",
-    description="ML-powered real estate price prediction and analytics platform",
+    description="ML-powered real estate price prediction, analysis, and recommendation platform",
     version="1.0.0"
 )
 
@@ -47,12 +52,27 @@ def load_pickle(filename):
 try:
     df = load_pickle("df.pkl")
     pipeline = load_pickle("pipeline_compressed.pkl")
+    data_viz = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
+    feature_text = load_pickle("feature_text.pkl")
+    location_df = load_pickle("location_distance.pkl")
+    cosine_sim1 = load_pickle("cosine_sim1.pkl")
+    cosine_sim2 = load_pickle("cosine_sim2.pkl")
+    cosine_sim3 = load_pickle("cosine_sim3.pkl")
     print("✅ ML model and data loaded successfully")
 except Exception as e:
     print(f"⚠️ Error loading model/data files: {e}")
-    # Create dummy data for testing if files not found
     df = pd.DataFrame()
     pipeline = None
+    data_viz = pd.DataFrame()
+    feature_text = ""
+    location_df = pd.DataFrame()
+    cosine_sim1 = np.array([])
+    cosine_sim2 = np.array([])
+    cosine_sim3 = np.array([])
+
+# Convert numeric columns in data_viz
+num_cols = ["price", "price_per_sqft", "built_up_area", "latitude", "longitude"]
+data_viz[num_cols] = data_viz[num_cols].apply(pd.to_numeric, errors="coerce")
 
 # Pydantic schema
 class PropertyInput(BaseModel):
@@ -121,7 +141,7 @@ async def get_options():
                 "sector": ["Sector 1", "Sector 2"],
                 "bedrooms": [1, 2, 3, 4],
                 "bathroom": [1, 2, 3],
-                "balcony": [0, 1, 2, 3],
+                "balcony": ["0", "1", "2", "3"],
                 "property_age": ["New", "1-5 years", "5-10 years"],
                 "servant_room": [0, 1],
                 "store_room": [0, 1],
@@ -153,7 +173,7 @@ async def get_stats():
         "avg_price": f"₹ {df['price'].mean():.2f} Cr" if not df.empty else "₹ 1.25 Cr",
         "sectors_covered": len(df["sector"].unique()) if not df.empty else 50,
         "model_accuracy": "92%",
-        "last_updated": "2024-01-15"
+        "last_updated": "2025-09-26"
     }
 
 @app.get("/api/health")
@@ -167,6 +187,129 @@ async def health_check():
         "data_loaded": not df.empty,
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/recommender/options")
+async def get_recommender_options():
+    try:
+        return {
+            "locations": sorted(location_df.columns.tolist()),
+            "apartments": sorted(location_df.index.tolist()),
+            "sectors": sorted(data_viz["sector"].unique().tolist())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading recommender options: {str(e)}")
+
+@app.get("/api/analysis/geomap")
+async def get_geomap():
+    try:
+        group_df = data_viz.groupby("sector")[["price_per_sqft", "built_up_area", "latitude", "longitude"]].mean().reset_index()
+        return {
+            "sectors": group_df["sector"].tolist(),
+            "price_per_sqft": group_df["price_per_sqft"].tolist(),
+            "built_up_area": group_df["built_up_area"].tolist(),
+            "latitude": group_df["latitude"].tolist(),
+            "longitude": group_df["longitude"].tolist()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading geomap data: {str(e)}")
+
+@app.get("/api/analysis/wordcloud")
+async def get_wordcloud():
+    try:
+        wordcloud = WordCloud(
+            width=800,
+            height=800,
+            background_color="black",
+            stopwords=set(["s"]),
+            min_font_size=10,
+        ).generate(feature_text)
+        
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.imshow(wordcloud, interpolation="bilinear")
+        ax.axis("off")
+        
+        # Convert plot to base64 image
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight")
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        plt.close(fig)
+        
+        return {"image_url": f"data:image/png;base64,{img_base64}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating wordcloud: {str(e)}")
+
+@app.get("/api/analysis/area-vs-price")
+async def get_area_vs_price(property_type: str = "flat"):
+    try:
+        filtered_df = data_viz[data_viz["property_type"] == property_type]
+        return {
+            "built_up_area": filtered_df["built_up_area"].tolist(),
+            "price": filtered_df["price"].tolist(),
+            "bedrooms": filtered_df["bedRoom"].tolist()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading area vs price data: {str(e)}")
+
+@app.get("/api/analysis/bhk-pie")
+async def get_bhk_pie(sector: str = "overall"):
+    try:
+        if sector == "overall":
+            df_subset = data_viz
+        else:
+            df_subset = data_viz[data_viz["sector"] == sector]
+        
+        bhk_counts = df_subset["bedRoom"].value_counts().reset_index()
+        return {
+            "bedrooms": bhk_counts["bedRoom"].tolist(),
+            "counts": bhk_counts["count"].tolist()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading BHK pie data: {str(e)}")
+
+@app.get("/api/analysis/price-dist")
+async def get_price_distribution():
+    try:
+        house_prices = data_viz[data_viz["property_type"] == "house"]["price"].dropna().tolist()
+        flat_prices = data_viz[data_viz["property_type"] == "flat"]["price"].dropna().tolist()
+        return {
+            "house_prices": house_prices,
+            "flat_prices": flat_prices
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading price distribution data: {str(e)}")
+
+@app.get("/api/recommender/location-search")
+async def location_search(location: str, radius: float):
+    try:
+        if location not in location_df.columns:
+            raise HTTPException(status_code=400, detail="Invalid location")
+        if radius <= 0:
+            raise HTTPException(status_code=400, detail="Radius must be positive")
+            
+        result_series = location_df[location_df[location] < radius * 1000][location].sort_values()
+        results = [{"property": key, "distance": round(value / 1000, 1)} for key, value in result_series.items()]
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in location search: {str(e)}")
+
+@app.get("/api/recommender/recommend")
+async def recommend_properties(property_name: str, top_n: int = 5):
+    try:
+        if property_name not in location_df.index:
+            raise HTTPException(status_code=400, detail="Property not found")
+            
+        cosine_sim_matrix = 0.5 * cosine_sim1 + 0.8 * cosine_sim2 + 1.0 * cosine_sim3
+        idx = location_df.index.get_loc(property_name)
+        sim_scores = list(enumerate(cosine_sim_matrix[idx]))
+        sorted_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+        top_indices = [i[0] for i in sorted_scores[1:top_n + 1]]
+        top_scores = [i[1] for i in sorted_scores[1:top_n + 1]]
+        top_properties = location_df.index[top_indices].tolist()
+        
+        return [{"PropertyName": prop, "SimilarityScore": score} for prop, score in zip(top_properties, top_scores)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating recommendations: {str(e)}")
 
 # Serve other frontend files
 @app.get("/{path:path}")
