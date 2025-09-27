@@ -14,12 +14,10 @@ class RealEstatePortfolio {
         await this.loadAnalysisData();
         await this.loadRecommenderOptions();
         
-        // Make app globally available for retry functions
         window.realEstateApp = this;
     }
 
     setupEventListeners() {
-        // Navigation
         const navToggle = document.querySelector('.nav-toggle');
         const navMenu = document.querySelector('.nav-menu');
         
@@ -29,13 +27,11 @@ class RealEstatePortfolio {
             });
         }
 
-        // Prediction form
         const form = document.getElementById('prediction-form');
         if (form) {
             form.addEventListener('submit', (e) => this.handlePrediction(e));
         }
 
-        // Analysis controls
         const propertyTypeSelect = document.getElementById('property-type-analysis');
         if (propertyTypeSelect) {
             propertyTypeSelect.addEventListener('change', () => this.loadAreaVsPrice());
@@ -46,7 +42,6 @@ class RealEstatePortfolio {
             sectorSelect.addEventListener('change', () => this.loadBhkPie());
         }
 
-        // Recommender controls
         const locationSearchBtn = document.getElementById('location-search-btn');
         if (locationSearchBtn) {
             locationSearchBtn.addEventListener('click', () => this.handleLocationSearch());
@@ -57,7 +52,6 @@ class RealEstatePortfolio {
             recommendBtn.addEventListener('click', () => this.handleRecommendation());
         }
 
-        // Nav link active state
         const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -66,7 +60,6 @@ class RealEstatePortfolio {
             });
         });
 
-        // Window scroll for navbar effect
         window.addEventListener('scroll', this.handleScroll.bind(this));
     }
 
@@ -113,7 +106,7 @@ class RealEstatePortfolio {
     async loadOptions() {
         try {
             const response = await fetch(`${this.apiBaseUrl}/api/options`);
-            if (!response.ok) throw new Error('Failed to load options');
+            if (!response.ok) throw new Error(`Failed to load options: ${response.status}`);
             
             const options = await response.json();
             this.populateSelect('property_type', options.property_type);
@@ -140,18 +133,19 @@ class RealEstatePortfolio {
             if (response.ok) {
                 const stats = await response.json();
                 this.updateStats(stats);
+            } else {
+                throw new Error(`Failed to load stats: ${response.status}`);
             }
         } catch (error) {
             console.error('Error loading stats:', error);
+            this.showNotification('Failed to load statistics. Using fallback data.', 'warning');
         }
     }
 
     async loadAnalysisData() {
         try {
-            // Remove loading states
             this.removePlotLoadingStates();
             
-            // Load all analysis components in parallel with better error handling
             await Promise.allSettled([
                 this.loadGeomap().catch(e => {
                     console.error('Geomap error:', e);
@@ -161,9 +155,18 @@ class RealEstatePortfolio {
                     console.error('Wordcloud error:', e);
                     this.showPlotError('wordcloud');
                 }),
-                this.loadAreaVsPrice().catch(e => console.error('Area vs Price error:', e)),
-                this.loadBhkPie().catch(e => console.error('BHK Pie error:', e)),
-                this.loadPriceDistribution().catch(e => console.error('Price Distribution error:', e))
+                this.loadAreaVsPrice().catch(e => {
+                    console.error('Area vs Price error:', e);
+                    this.showPlotError('area-vs-price');
+                }),
+                this.loadBhkPie().catch(e => {
+                    console.error('BHK Pie error:', e);
+                    this.showPlotError('bhk-pie');
+                }),
+                this.loadPriceDistribution().catch(e => {
+                    console.error('Price Distribution error:', e);
+                    this.showPlotError('price-dist');
+                })
             ]);
             
             this.showNotification('Analysis data loaded successfully!', 'success');
@@ -176,7 +179,7 @@ class RealEstatePortfolio {
     async loadRecommenderOptions() {
         try {
             const response = await fetch(`${this.apiBaseUrl}/api/recommender/options`);
-            if (!response.ok) throw new Error('Failed to load recommender options');
+            if (!response.ok) throw new Error(`Failed to load recommender options: ${response.status}`);
             const options = await response.json();
             this.populateSelect('location-search', options.locations);
             this.populateSelect('apartment-select', options.apartments);
@@ -231,9 +234,21 @@ class RealEstatePortfolio {
             floor_category: formData.get('floor_category')
         };
 
-        // Validate required fields
+        // Validate required fields - FIXED: Allow 0 values for numeric fields
         const requiredFields = ['property_type', 'sector', 'bedrooms', 'bathroom', 'balcony', 'property_age', 'built_up_area', 'servant_room', 'store_room', 'furnishing_type', 'luxury_category', 'floor_category'];
-        const missingFields = requiredFields.filter(field => !inputData[field] || inputData[field] === '');
+        const missingFields = requiredFields.filter(field => {
+            const value = inputData[field];
+            
+            // For numeric fields (servant_room, store_room, bedrooms, bathroom, built_up_area), 0 is valid
+            const numericFields = ['servant_room', 'store_room', 'bedrooms', 'bathroom', 'built_up_area'];
+            if (numericFields.includes(field)) {
+                return value === '' || value === null || value === undefined || isNaN(value);
+            }
+            
+            // For other fields, check if empty/null/undefined
+            return !value || value === '';
+        });
+
         if (missingFields.length > 0) {
             this.showNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
             return;
@@ -274,20 +289,21 @@ class RealEstatePortfolio {
     async loadGeomap() {
         try {
             const response = await fetch(`${this.apiBaseUrl}/api/analysis/geomap`);
-            if (!response.ok) throw new Error('Failed to load geomap data');
+            if (!response.ok) throw new Error(`Failed to load geomap data: ${response.status}`);
             const data = await response.json();
             
-            // Remove loading state
             const geomapContainer = document.getElementById('geomap');
             geomapContainer.classList.remove('loading');
             
-            // Calculate marker sizes based on built_up_area
+            if (!data.latitude || !data.longitude || data.latitude.length === 0) {
+                throw new Error('Invalid or empty geomap data');
+            }
+
             const markerSizes = data.built_up_area.map(area => {
                 const size = Math.sqrt(area) / 5;
                 return Math.max(10, Math.min(30, size));
             });
 
-            // Create the map trace
             const trace = {
                 type: 'scattermapbox',
                 lat: data.latitude,
@@ -311,7 +327,6 @@ class RealEstatePortfolio {
                 name: 'Sectors'
             };
 
-            // Calculate center of the map
             const centerLat = data.latitude.reduce((a, b) => a + b, 0) / data.latitude.length;
             const centerLon = data.longitude.reduce((a, b) => a + b, 0) / data.longitude.length;
 
@@ -332,7 +347,6 @@ class RealEstatePortfolio {
             console.error('Error loading geomap:', error);
             this.showPlotError('geomap');
             
-            // Create a fallback map with sample data
             const fallbackData = [{
                 type: 'scattermapbox',
                 lat: [28.4595, 28.4612, 28.4630],
@@ -371,51 +385,85 @@ class RealEstatePortfolio {
             }
             
             const data = await response.json();
-            console.log('Wordcloud data received:', data ? 'yes' : 'no');
+            console.log('Wordcloud data received:', data);
             
-            // Remove loading state
             const wordcloudDiv = document.getElementById('wordcloud');
-            if (wordcloudDiv) {
-                wordcloudDiv.classList.remove('loading');
-            }
+            wordcloudDiv.classList.remove('loading');
             
             if (data.image_url) {
-                wordcloudDiv.innerHTML = `
-                    <div style="text-align: center; padding: 20px;">
-                        <img src="${data.image_url}" 
-                             style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" 
-                             alt="Property Features Wordcloud"
-                             onload="this.style.opacity='1'"
-                             onerror="window.realEstateApp.showPlotError('wordcloud')">
-                    </div>
-                `;
+                // Create image element with better error handling
+                const imgContainer = document.createElement('div');
+                imgContainer.style.cssText = 'text-align: center; padding: 20px;';
                 
-                // Add fade-in effect
-                const img = wordcloudDiv.querySelector('img');
-                if (img) {
-                    img.style.transition = 'opacity 0.5s ease-in';
-                    img.style.opacity = '0';
-                    setTimeout(() => { 
-                        if (img) img.style.opacity = '1'; 
-                    }, 100);
+                const img = document.createElement('img');
+                img.src = data.image_url;
+                img.alt = data.message || 'Property Features Wordcloud';
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); opacity: 0; transition: opacity 0.5s ease-in;';
+                
+                img.onload = () => {
+                    img.style.opacity = '1';
+                    console.log('Wordcloud image loaded successfully');
+                };
+                
+                img.onerror = () => {
+                    console.error('Failed to load wordcloud image');
+                    this.showPlaceholderWordcloud(wordcloudDiv, 'Image failed to load');
+                };
+                
+                imgContainer.appendChild(img);
+                wordcloudDiv.innerHTML = '';
+                wordcloudDiv.appendChild(imgContainer);
+                
+                // Add informational message if available
+                if (data.message) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.style.cssText = 'text-align: center; color: #6b7280; font-size: 0.9rem; margin-top: 10px;';
+                    messageDiv.textContent = data.message;
+                    wordcloudDiv.appendChild(messageDiv);
                 }
             } else {
-                throw new Error('No image URL in response');
+                throw new Error('No image_url in wordcloud response');
             }
         } catch (error) {
             console.error('Error loading wordcloud:', error);
-            this.showPlotError('wordcloud');
-            this.showNotification('Wordcloud failed to load. Showing sample data.', 'warning');
+            this.showPlaceholderWordcloud(document.getElementById('wordcloud'), 'Wordcloud temporarily unavailable');
         }
+    }
+
+    showPlaceholderWordcloud(container, message) {
+        if (!container) return;
+        
+        container.classList.remove('loading');
+        container.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center; background: #f8fafc; border-radius: 10px;">
+                <i class="fas fa-cloud" style="font-size: 4rem; color: #d1d5db; margin-bottom: 1rem;"></i>
+                <h3 style="color: #6b7280; margin-bottom: 0.5rem;">Feature Overview</h3>
+                <p style="color: #9ca3af; margin-bottom: 1.5rem;">${message}</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; max-width: 400px;">
+                    <span style="background: #e0e7ff; color: #3730a3; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Apartment</span>
+                    <span style="background: #f0f9ff; color: #0c4a6e; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Luxury</span>
+                    <span style="background: #fef2f2; color: #991b1b; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Modern</span>
+                    <span style="background: #f0fdf4; color: #166534; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Spacious</span>
+                    <span style="background: #fff7ed; color: #9a3412; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Furnished</span>
+                    <span style="background: #faf5ff; color: #7c3aed; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Balcony</span>
+                    <span style="background: #f1f5f9; color: #475569; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Parking</span>
+                    <span style="background: #fef7cd; color: #854d0e; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">Security</span>
+                </div>
+            </div>
+        `;
     }
 
     async loadAreaVsPrice() {
         try {
             const propertyType = document.getElementById('property-type-analysis').value;
-            const response = await fetch(`${this.apiBaseUrl}/api/analysis/area-vs-price?property_type=${propertyType}`);
-            if (!response.ok) throw new Error('Failed to load area vs price data');
+            const response = await fetch(`${this.apiBaseUrl}/api/analysis/area-vs-price?property_type=${encodeURIComponent(propertyType)}`);
+            if (!response.ok) throw new Error(`Failed to load area vs price data: ${response.status}`);
             const data = await response.json();
             
+            if (!data.built_up_area || !data.price || data.built_up_area.length === 0) {
+                throw new Error('Invalid or empty area vs price data');
+            }
+
             Plotly.newPlot('area-vs-price', [{
                 type: 'scatter',
                 x: data.built_up_area,
@@ -436,17 +484,21 @@ class RealEstatePortfolio {
             });
         } catch (error) {
             console.error('Error loading area vs price:', error);
-            this.showNotification('Failed to load area vs price plot. Please try again.', 'error');
+            this.showPlotError('area-vs-price');
         }
     }
 
     async loadBhkPie() {
         try {
             const sector = document.getElementById('sector-analysis').value;
-            const response = await fetch(`${this.apiBaseUrl}/api/analysis/bhk-pie?sector=${sector}`);
-            if (!response.ok) throw new Error('Failed to load BHK pie data');
+            const response = await fetch(`${this.apiBaseUrl}/api/analysis/bhk-pie?sector=${encodeURIComponent(sector)}`);
+            if (!response.ok) throw new Error(`Failed to load BHK pie data: ${response.status}`);
             const data = await response.json();
             
+            if (!data.bedrooms || !data.counts || data.bedrooms.length === 0) {
+                throw new Error('Invalid or empty BHK pie data');
+            }
+
             Plotly.newPlot('bhk-pie', [{
                 type: 'pie',
                 labels: data.bedrooms.map(b => `${b} BHK`),
@@ -458,16 +510,20 @@ class RealEstatePortfolio {
             });
         } catch (error) {
             console.error('Error loading BHK pie:', error);
-            this.showNotification('Failed to load BHK distribution. Please try again.', 'error');
+            this.showPlotError('bhk-pie');
         }
     }
 
     async loadPriceDistribution() {
         try {
             const response = await fetch(`${this.apiBaseUrl}/api/analysis/price-dist`);
-            if (!response.ok) throw new Error('Failed to load price distribution data');
+            if (!response.ok) throw new Error(`Failed to load price distribution data: ${response.status}`);
             const data = await response.json();
             
+            if (!data.house_prices && !data.flat_prices) {
+                throw new Error('Invalid or empty price distribution data');
+            }
+
             Plotly.newPlot('price-dist', [
                 {
                     type: 'histogram',
@@ -492,7 +548,7 @@ class RealEstatePortfolio {
             });
         } catch (error) {
             console.error('Error loading price distribution:', error);
-            this.showNotification('Failed to load price distribution. Please try again.', 'error');
+            this.showPlotError('price-dist');
         }
     }
 
@@ -509,7 +565,7 @@ class RealEstatePortfolio {
             }
 
             const response = await fetch(`${this.apiBaseUrl}/api/recommender/location-search?location=${encodeURIComponent(location)}&radius=${radius}`);
-            if (!response.ok) throw new Error('Failed to search locations');
+            if (!response.ok) throw new Error(`Failed to search locations: ${response.status}`);
             const results = await response.json();
             
             const resultContainer = document.getElementById('location-results');
@@ -540,7 +596,7 @@ class RealEstatePortfolio {
             }
 
             const response = await fetch(`${this.apiBaseUrl}/api/recommender/recommend?property_name=${encodeURIComponent(apartment)}`);
-            if (!response.ok) throw new Error('Failed to get recommendations');
+            if (!response.ok) throw new Error(`Failed to get recommendations: ${response.status}`);
             const results = await response.json();
             
             const resultContainer = document.getElementById('recommend-results');
@@ -659,7 +715,6 @@ class RealEstatePortfolio {
     }
 
     showNotification(message, type = 'info') {
-        // Remove existing notifications
         document.querySelectorAll('.notification').forEach(n => n.remove());
         
         const notification = document.createElement('div');
