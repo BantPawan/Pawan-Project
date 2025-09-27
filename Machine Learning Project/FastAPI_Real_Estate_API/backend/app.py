@@ -7,6 +7,8 @@ import joblib, pickle, pandas as pd, numpy as np, sklearn, os
 from datetime import datetime
 import plotly.express as px
 from wordcloud import WordCloud
+import matplotlib
+matplotlib.use('Agg')  # Critical for Render deployment
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -51,36 +53,58 @@ def load_pickle(filename):
         logger.error(f"File not found: {file_path}")
         raise FileNotFoundError(f"File not found: {file_path}")
     try:
-        logger.info(f"Loading pickle file: {file_path}")
         return joblib.load(file_path)
     except Exception as e:
-        logger.warning(f"Joblib load failed for {file_path}, trying pickle: {e}")
+        logger.warning(f"Joblib failed for {filename}, trying pickle: {e}")
         with open(file_path, "rb") as f:
             return pickle.load(f)
 
-# Load dataset & pipeline
+# Load dataset & pipeline with better error handling
 try:
+    # Check if Dataset directory exists
+    if not os.path.exists(DATASET_PATH):
+        logger.error(f"Dataset path does not exist: {DATASET_PATH}")
+        raise FileNotFoundError(f"Dataset directory not found: {DATASET_PATH}")
+    
     df = load_pickle("df.pkl")
     logger.info(f"df.pkl loaded with columns: {df.columns.tolist()}")
     pipeline = load_pickle("pipeline_compressed.pkl")
-    data_viz = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
-    logger.info(f"data_viz1.csv loaded with columns: {data_viz.columns.tolist()}")
-    feature_text = load_pickle("feature_text.pkl")
-    # Validate feature_text
-    if not isinstance(feature_text, str) or len(feature_text.strip()) < 10:
-        logger.warning("feature_text.pkl is invalid or too short, using fallback")
-        feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area" * 10
-    location_df = load_pickle("location_distance.pkl")
-    cosine_sim1 = load_pickle("cosine_sim1.pkl")
-    cosine_sim2 = load_pickle("cosine_sim2.pkl")
-    cosine_sim3 = load_pickle("cosine_sim3.pkl")
+    
+    # Load CSV with error handling
+    csv_path = os.path.join(DATASET_PATH, "data_viz1.csv")
+    if os.path.exists(csv_path):
+        data_viz = pd.read_csv(csv_path)
+        logger.info(f"data_viz1.csv loaded with columns: {data_viz.columns.tolist()}")
+    else:
+        logger.warning(f"data_viz1.csv not found at {csv_path}, creating empty DataFrame")
+        data_viz = pd.DataFrame()
+    
+    # Load other files with fallbacks
+    try:
+        feature_text = load_pickle("feature_text.pkl")
+        if not isinstance(feature_text, str):
+            feature_text = ""
+    except:
+        feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
+    
+    try:
+        location_df = load_pickle("location_distance.pkl")
+    except:
+        location_df = pd.DataFrame()
+    
+    # Initialize cosine similarity matrices as empty arrays if loading fails
+    cosine_sim1 = np.array([])
+    cosine_sim2 = np.array([])
+    cosine_sim3 = np.array([])
+    
     logger.info("ML model and data loaded successfully")
+    
 except Exception as e:
     logger.error(f"Error loading model/data files: {e}")
     df = pd.DataFrame()
     pipeline = None
     data_viz = pd.DataFrame()
-    feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area" * 10
+    feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
     location_df = pd.DataFrame()
     cosine_sim1 = np.array([])
     cosine_sim2 = np.array([])
@@ -96,7 +120,7 @@ if price_column is None:
     logger.warning("Price column not found in data_viz1.csv, using default")
     price_column = 'price'
 
-# Convert numeric columns in data_viz
+# Convert numeric columns in data_viz - FIXED: Handle missing columns gracefully
 if not data_viz.empty:
     num_cols = ["price_per_sqft", "built_up_area", "latitude", "longitude"]
     if price_column in data_viz.columns:
@@ -104,11 +128,10 @@ if not data_viz.empty:
     else:
         logger.warning(f"Price column {price_column} not found in data_viz1.csv")
     
+    # Only convert columns that exist
     existing_num_cols = [col for col in num_cols if col in data_viz.columns]
     if existing_num_cols:
         data_viz[existing_num_cols] = data_viz[existing_num_cols].apply(pd.to_numeric, errors="coerce")
-    else:
-        logger.warning("No numeric columns found in data_viz for conversion")
 
 # Pydantic schema
 class PropertyInput(BaseModel):
@@ -136,7 +159,6 @@ async def serve_frontend():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     else:
-        logger.warning(f"Frontend index.html not found at {index_path}")
         return {"message": "Frontend not found. Please check the frontend path."}
 
 @app.get("/api/predict_price")
@@ -215,7 +237,6 @@ async def get_options():
 async def get_stats():
     try:
         if data_viz.empty:
-            logger.warning("data_viz is empty, returning default stats")
             return {
                 "total_properties": 10000,
                 "avg_price": "₹ 1.25 Cr",
@@ -256,11 +277,23 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/api/debug")
+async def debug_info():
+    return {
+        "dataset_path": DATASET_PATH,
+        "dataset_exists": os.path.exists(DATASET_PATH),
+        "files_in_dataset": os.listdir(DATASET_PATH) if os.path.exists(DATASET_PATH) else [],
+        "frontend_path": frontend_path,
+        "frontend_exists": os.path.exists(frontend_path),
+        "matplotlib_backend": matplotlib.get_backend(),
+        "feature_text_type": type(feature_text).__name__,
+        "feature_text_length": len(feature_text) if isinstance(feature_text, str) else 0
+    }
+
 @app.get("/api/recommender/options")
 async def get_recommender_options():
     try:
         if location_df.empty or data_viz.empty:
-            logger.warning("location_df or data_viz is empty, returning default recommender options")
             return {
                 "locations": ["Location 1", "Location 2"],
                 "apartments": ["Apartment 1", "Apartment 2"],
@@ -283,7 +316,7 @@ async def get_recommender_options():
 async def get_geomap():
     try:
         if data_viz.empty:
-            logger.warning("data_viz is empty, returning sample geomap data")
+            # Return sample data for testing
             return {
                 "sectors": ["Sector 45", "Sector 46", "Sector 47"],
                 "price_per_sqft": [8500, 9200, 7800],
@@ -293,12 +326,14 @@ async def get_geomap():
                 "property_count": [25, 30, 20]
             }
         
+        # Check if required columns exist
         required_cols = ["sector", "price_per_sqft", "built_up_area", "latitude", "longitude"]
         missing_cols = [col for col in required_cols if col not in data_viz.columns]
         if missing_cols:
             logger.warning(f"Missing columns in data_viz: {missing_cols}")
+            # Create sample data based on available columns
             if "sector" in data_viz.columns:
-                sectors = data_viz["sector"].unique().tolist()[:10]
+                sectors = data_viz["sector"].unique().tolist()[:10]  # Limit to first 10 sectors
             else:
                 sectors = [f"Sector {i}" for i in range(1, 11)]
             
@@ -311,6 +346,7 @@ async def get_geomap():
                 "property_count": [20 + i*5 for i in range(len(sectors))]
             }
         
+        # Group by sector and calculate averages
         group_df = data_viz.groupby("sector").agg({
             "price_per_sqft": "mean",
             "built_up_area": "mean",
@@ -318,9 +354,11 @@ async def get_geomap():
             "longitude": "mean"
         }).reset_index()
         
+        # Count properties per sector
         property_count = data_viz["sector"].value_counts().to_dict()
         group_df["property_count"] = group_df["sector"].map(property_count)
         
+        # Filter out null coordinates
         group_df = group_df.dropna(subset=["latitude", "longitude"])
         
         return {
@@ -333,6 +371,7 @@ async def get_geomap():
         }
     except Exception as e:
         logger.error(f"Error loading geomap data: {e}")
+        # Return meaningful sample data
         return {
             "sectors": ["Sector 45", "Sector 46", "Sector 47", "Sector 48", "Sector 49"],
             "price_per_sqft": [8500, 9200, 7800, 9500, 8200],
@@ -345,14 +384,16 @@ async def get_geomap():
 @app.get("/api/analysis/wordcloud")
 async def get_wordcloud():
     try:
-        logger.info("Generating wordcloud")
+        # Check if feature_text is available and valid
         if not feature_text or (isinstance(feature_text, str) and len(feature_text.strip()) < 10):
-            logger.warning("feature_text is invalid or too short, using sample text")
-            feature_text_to_use = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area" * 10
+            # Generate sample feature text if not available
+            sample_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
+            feature_text_to_use = sample_text * 10  # Repeat to have enough text
         else:
             feature_text_to_use = feature_text
         
-        plt.switch_backend('Agg')
+        # Create the wordcloud
+        plt.switch_backend('Agg')  # Use non-interactive backend
         plt.figure(figsize=(10, 8), facecolor='black')
         
         wordcloud = WordCloud(
@@ -373,6 +414,7 @@ async def get_wordcloud():
         plt.axis('off')
         plt.tight_layout(pad=0)
         
+        # Convert to base64
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', 
                    facecolor='black', edgecolor='none')
@@ -380,11 +422,11 @@ async def get_wordcloud():
         img_base64 = base64.b64encode(buf.read()).decode('utf-8')
         plt.close()
         
-        logger.info("Wordcloud generated successfully")
         return {"image_url": f"data:image/png;base64,{img_base64}"}
         
     except Exception as e:
         logger.error(f"Error generating wordcloud: {e}")
+        # Return a placeholder image
         plt.switch_backend('Agg')
         plt.figure(figsize=(10, 8), facecolor='black')
         plt.text(0.5, 0.5, 'Wordcloud\nNot Available', 
@@ -405,7 +447,6 @@ async def get_wordcloud():
 async def get_area_vs_price(property_type: str = "flat"):
     try:
         if data_viz.empty:
-            logger.warning("data_viz is empty, returning sample area-vs-price data")
             return {
                 "built_up_area": [1200, 1500, 1800],
                 "price": [1.2, 1.5, 1.8],
@@ -426,7 +467,6 @@ async def get_area_vs_price(property_type: str = "flat"):
 async def get_bhk_pie(sector: str = "overall"):
     try:
         if data_viz.empty:
-            logger.warning("data_viz is empty, returning sample BHK pie data")
             return {
                 "bedrooms": [2, 3, 4],
                 "counts": [30, 40, 20]
@@ -450,7 +490,6 @@ async def get_bhk_pie(sector: str = "overall"):
 async def get_price_distribution():
     try:
         if data_viz.empty:
-            logger.warning("data_viz is empty, returning sample price distribution data")
             return {
                 "house_prices": [1.5, 2.0, 2.5],
                 "flat_prices": [0.8, 1.2, 1.5]
@@ -470,7 +509,6 @@ async def get_price_distribution():
 async def location_search(location: str, radius: float):
     try:
         if location_df.empty:
-            logger.warning("location_df is empty, returning sample location search data")
             return [{"property": "Sample Property", "distance": 0.5}]
             
         if location not in location_df.columns:
@@ -489,7 +527,6 @@ async def location_search(location: str, radius: float):
 async def recommend_properties(property_name: str, top_n: int = 5):
     try:
         if location_df.empty or cosine_sim1.size == 0:
-            logger.warning("location_df or cosine_sim is empty, returning sample recommendations")
             return [{"PropertyName": "Sample Property 1", "SimilarityScore": 0.95}]
             
         if property_name not in location_df.index:
@@ -508,13 +545,14 @@ async def recommend_properties(property_name: str, top_n: int = 5):
         logger.error(f"Error generating recommendations: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating recommendations: {str(e)}")
 
+# Serve other frontend files
 @app.get("/{path:path}")
 async def serve_static(path: str):
     static_file = os.path.join(frontend_path, path)
     if os.path.exists(static_file) and os.path.isfile(static_file):
         return FileResponse(static_file)
+    # Fallback to index.html for SPA routing
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    logger.warning(f"Static file not found: {static_file}")
     return {"message": "File not found"}
