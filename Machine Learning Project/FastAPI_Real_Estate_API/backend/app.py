@@ -6,12 +6,6 @@ from pydantic import BaseModel
 import joblib, pickle, pandas as pd, numpy as np, sklearn, os
 from datetime import datetime
 import plotly.express as px
-from wordcloud import WordCloud
-import matplotlib
-matplotlib.use('Agg')  # Critical for Render deployment
-import matplotlib.pyplot as plt
-import io
-import base64
 import logging
 
 # Configure logging
@@ -81,13 +75,6 @@ try:
     
     # Load other files with fallbacks
     try:
-        feature_text = load_pickle("feature_text.pkl")
-        if not isinstance(feature_text, str):
-            feature_text = ""
-    except:
-        feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
-    
-    try:
         location_df = load_pickle("location_distance.pkl")
     except:
         location_df = pd.DataFrame()
@@ -104,7 +91,6 @@ except Exception as e:
     df = pd.DataFrame()
     pipeline = None
     data_viz = pd.DataFrame()
-    feature_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
     location_df = pd.DataFrame()
     cosine_sim1 = np.array([])
     cosine_sim2 = np.array([])
@@ -285,9 +271,6 @@ async def debug_info():
         "files_in_dataset": os.listdir(DATASET_PATH) if os.path.exists(DATASET_PATH) else [],
         "frontend_path": frontend_path,
         "frontend_exists": os.path.exists(frontend_path),
-        "matplotlib_backend": matplotlib.get_backend(),
-        "feature_text_type": type(feature_text).__name__,
-        "feature_text_length": len(feature_text) if isinstance(feature_text, str) else 0
     }
 
 @app.get("/api/recommender/options")
@@ -383,65 +366,19 @@ async def get_geomap():
 
 @app.get("/api/analysis/wordcloud")
 async def get_wordcloud():
+    """Simplified wordcloud endpoint that returns a static image URL"""
     try:
-        # Check if feature_text is available and valid
-        if not feature_text or (isinstance(feature_text, str) and len(feature_text.strip()) < 10):
-            # Generate sample feature text if not available
-            sample_text = "apartment flat house bedroom bathroom balcony furnished semi-furnished luxury modern new old spacious garden parking security elevator gym pool clubhouse green area"
-            feature_text_to_use = sample_text * 10  # Repeat to have enough text
-        else:
-            feature_text_to_use = feature_text
-        
-        # Create the wordcloud
-        plt.switch_backend('Agg')  # Use non-interactive backend
-        plt.figure(figsize=(10, 8), facecolor='black')
-        
-        wordcloud = WordCloud(
-            width=800,
-            height=600,
-            background_color='black',
-            colormap='viridis',
-            max_words=100,
-            contour_width=1,
-            contour_color='steelblue',
-            relative_scaling=0.5,
-            min_font_size=10,
-            max_font_size=120,
-            random_state=42
-        ).generate(feature_text_to_use)
-        
-        plt.imshow(wordcloud, interpolation='bilinear')
-        plt.axis('off')
-        plt.tight_layout(pad=0)
-        
-        # Convert to base64
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', 
-                   facecolor='black', edgecolor='none')
-        buf.seek(0)
-        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-        plt.close()
-        
-        return {"image_url": f"data:image/png;base64,{img_base64}"}
-        
+        # Return a static placeholder or pre-generated wordcloud
+        return {
+            "image_url": "https://via.placeholder.com/800x400/4F46E5/FFFFFF?text=Real+Estate+Features+WordCloud",
+            "message": "WordCloud feature is temporarily using a placeholder image"
+        }
     except Exception as e:
-        logger.error(f"Error generating wordcloud: {e}")
-        # Return a placeholder image
-        plt.switch_backend('Agg')
-        plt.figure(figsize=(10, 8), facecolor='black')
-        plt.text(0.5, 0.5, 'Wordcloud\nNot Available', 
-                fontsize=24, color='white', ha='center', va='center',
-                transform=plt.gca().transAxes)
-        plt.axis('off')
-        
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight',
-                   facecolor='black', edgecolor='none')
-        buf.seek(0)
-        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-        plt.close()
-        
-        return {"image_url": f"data:image/png;base64,{img_base64}"}
+        logger.error(f"Wordcloud error: {e}")
+        return {
+            "image_url": "https://via.placeholder.com/800x400/EF4444/FFFFFF?text=WordCloud+Unavailable",
+            "message": "WordCloud generation failed"
+        }
 
 @app.get("/api/analysis/area-vs-price")
 async def get_area_vs_price(property_type: str = "flat"):
