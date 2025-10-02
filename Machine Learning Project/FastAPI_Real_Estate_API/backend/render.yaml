@@ -1,12 +1,12 @@
 services:
   - type: web
-    name: realestate-ai-portfolio
+    name: real-estate-api
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$PORT
+    buildCommand: |
+      pip install -r backend/requirements.txt
+      cd react-frontend && npm install && npm run build
+    startCommand: cd backend && uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.0
-    healthCheckPath: /api/health
-    autoDeploy: true
+        value: 3.11.0
