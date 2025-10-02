@@ -166,6 +166,18 @@ class RealEstatePortfolio {
                 this.loadPriceDistribution().catch(e => {
                     console.error('Price Distribution error:', e);
                     this.showPlotError('price-dist');
+                }),
+                this.loadCorrelationHeatmap().catch(e => {
+                    console.error('Correlation error:', e);
+                    this.showPlotError('correlation-heatmap');
+                }),
+                this.loadLuxuryScores().catch(e => {
+                    console.error('Luxury scores error:', e);
+                    this.showPlotError('luxury-scores');
+                }),
+                this.loadPriceTrend().catch(e => {
+                    console.error('Price trend error:', e);
+                    this.showPlotError('price-trend');
                 })
             ]);
             
@@ -390,15 +402,15 @@ class RealEstatePortfolio {
             const wordcloudDiv = document.getElementById('wordcloud');
             wordcloudDiv.classList.remove('loading');
             
-            if (data.image_url) {
-                // Create image element with better error handling
+            if (data.image_url && data.image_url.startsWith('data:image')) {
+                // Base64 image data
                 const imgContainer = document.createElement('div');
-                imgContainer.style.cssText = 'text-align: center; padding: 20px;';
+                imgContainer.style.cssText = 'text-align: center; padding: 10px; background: black; border-radius: 10px;';
                 
                 const img = document.createElement('img');
                 img.src = data.image_url;
                 img.alt = data.message || 'Property Features Wordcloud';
-                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); opacity: 0; transition: opacity 0.5s ease-in;';
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; opacity: 0; transition: opacity 0.5s ease-in;';
                 
                 img.onload = () => {
                     img.style.opacity = '1';
@@ -421,6 +433,29 @@ class RealEstatePortfolio {
                     messageDiv.textContent = data.message;
                     wordcloudDiv.appendChild(messageDiv);
                 }
+            } else if (data.image_url) {
+                // URL image
+                const imgContainer = document.createElement('div');
+                imgContainer.style.cssText = 'text-align: center; padding: 20px;';
+                
+                const img = document.createElement('img');
+                img.src = data.image_url;
+                img.alt = data.message || 'Property Features Wordcloud';
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); opacity: 0; transition: opacity 0.5s ease-in;';
+                
+                img.onload = () => {
+                    img.style.opacity = '1';
+                    console.log('Wordcloud image loaded successfully');
+                };
+                
+                img.onerror = () => {
+                    console.error('Failed to load wordcloud image');
+                    this.showPlaceholderWordcloud(wordcloudDiv, 'Image failed to load');
+                };
+                
+                imgContainer.appendChild(img);
+                wordcloudDiv.innerHTML = '';
+                wordcloudDiv.appendChild(imgContainer);
             } else {
                 throw new Error('No image_url in wordcloud response');
             }
@@ -472,15 +507,16 @@ class RealEstatePortfolio {
                 marker: {
                     color: data.bedrooms,
                     size: 10,
-                    showscale: true
+                    showscale: true,
+                    colorscale: 'Viridis'
                 },
-                text: data.bedrooms,
+                text: data.bedrooms.map(b => `${b} BHK`),
                 hoverinfo: 'x+y+text'
             }], {
                 title: `Area vs Price for ${propertyType.charAt(0).toUpperCase() + propertyType.slice(1)}`,
                 xaxis: { title: 'Built-up Area (sq ft)' },
                 yaxis: { title: 'Price (Cr)' },
-                height: 500
+                height: 400
             });
         } catch (error) {
             console.error('Error loading area vs price:', error);
@@ -503,10 +539,13 @@ class RealEstatePortfolio {
                 type: 'pie',
                 labels: data.bedrooms.map(b => `${b} BHK`),
                 values: data.counts,
-                textinfo: 'percent+label'
+                textinfo: 'percent+label',
+                hoverinfo: 'label+percent+value',
+                hole: 0.4
             }], {
                 title: `BHK Distribution in ${sector === 'overall' ? 'Overall Data' : sector}`,
-                height: 500
+                height: 400,
+                showlegend: true
             });
         } catch (error) {
             console.error('Error loading BHK pie:', error);
@@ -529,26 +568,116 @@ class RealEstatePortfolio {
                     type: 'histogram',
                     x: data.house_prices,
                     name: 'House',
-                    opacity: 0.5,
-                    histnorm: 'density'
+                    opacity: 0.7,
+                    nbinsx: 20
                 },
                 {
                     type: 'histogram',
                     x: data.flat_prices,
                     name: 'Flat',
-                    opacity: 0.5,
-                    histnorm: 'density'
+                    opacity: 0.7,
+                    nbinsx: 20
                 }
             ], {
                 title: 'Price Distribution by Property Type',
                 xaxis: { title: 'Price (Cr)' },
-                yaxis: { title: 'Density' },
+                yaxis: { title: 'Count' },
                 barmode: 'overlay',
-                height: 500
+                height: 400
             });
         } catch (error) {
             console.error('Error loading price distribution:', error);
             this.showPlotError('price-dist');
+        }
+    }
+
+    // NEW VISUALIZATION METHODS
+    async loadCorrelationHeatmap() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/api/analysis/correlation`);
+            if (!response.ok) throw new Error(`Failed to load correlation data: ${response.status}`);
+            const data = await response.json();
+            
+            const correlationDiv = document.getElementById('correlation-heatmap');
+            if (!correlationDiv) return;
+
+            Plotly.newPlot('correlation-heatmap', [{
+                z: data.correlation_matrix,
+                x: data.features,
+                y: data.features,
+                type: 'heatmap',
+                colorscale: 'RdBu',
+                zmin: -1,
+                zmax: 1,
+                hoverongaps: false,
+                text: data.correlation_matrix.map(row => row.map(val => val.toFixed(2))),
+                texttemplate: '%{text}',
+                textfont: { size: 12, color: 'black' }
+            }], {
+                title: 'Feature Correlation Heatmap',
+                height: 400,
+                margin: { t: 50, b: 50, l: 50, r: 50 }
+            });
+        } catch (error) {
+            console.error('Error loading correlation heatmap:', error);
+            this.showPlotError('correlation-heatmap');
+        }
+    }
+
+    async loadLuxuryScores() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/api/analysis/luxury-score`);
+            if (!response.ok) throw new Error(`Failed to load luxury scores: ${response.status}`);
+            const data = await response.json();
+            
+            const luxuryDiv = document.getElementById('luxury-scores');
+            if (!luxuryDiv) return;
+
+            Plotly.newPlot('luxury-scores', [{
+                type: 'bar',
+                x: data.sectors,
+                y: data.scores,
+                marker: {
+                    color: data.scores,
+                    colorscale: 'Viridis'
+                }
+            }], {
+                title: 'Top Sectors by Average Luxury Score',
+                xaxis: { title: 'Sector', tickangle: -45 },
+                yaxis: { title: 'Luxury Score' },
+                height: 400
+            });
+        } catch (error) {
+            console.error('Error loading luxury scores:', error);
+            this.showPlotError('luxury-scores');
+        }
+    }
+
+    async loadPriceTrend() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/api/analysis/price-trend`);
+            if (!response.ok) throw new Error(`Failed to load price trend: ${response.status}`);
+            const data = await response.json();
+            
+            const trendDiv = document.getElementById('price-trend');
+            if (!trendDiv) return;
+
+            Plotly.newPlot('price-trend', [{
+                type: 'scatter',
+                x: data.age_categories,
+                y: data.avg_prices,
+                mode: 'lines+markers',
+                line: { shape: 'spline', width: 3 },
+                marker: { size: 8 }
+            }], {
+                title: 'Price Trend by Property Age',
+                xaxis: { title: 'Property Age Category' },
+                yaxis: { title: 'Average Price (Cr)' },
+                height: 400
+            });
+        } catch (error) {
+            console.error('Error loading price trend:', error);
+            this.showPlotError('price-trend');
         }
     }
 
@@ -667,7 +796,8 @@ class RealEstatePortfolio {
     }
 
     removePlotLoadingStates() {
-        const plots = ['geomap', 'wordcloud', 'area-vs-price', 'bhk-pie', 'price-dist'];
+        const plots = ['geomap', 'wordcloud', 'area-vs-price', 'bhk-pie', 'price-dist', 
+                      'correlation-heatmap', 'luxury-scores', 'price-trend'];
         plots.forEach(plotId => {
             const plot = document.getElementById(plotId);
             if (plot) {
@@ -710,6 +840,15 @@ class RealEstatePortfolio {
                 break;
             case 'price-dist':
                 this.loadPriceDistribution();
+                break;
+            case 'correlation-heatmap':
+                this.loadCorrelationHeatmap();
+                break;
+            case 'luxury-scores':
+                this.loadLuxuryScores();
+                break;
+            case 'price-trend':
+                this.loadPriceTrend();
                 break;
         }
     }
