@@ -26,8 +26,8 @@ const About = () => {
           <div className="about-content">
             <h2>About This Project</h2>
             <p>
-              This Real Estate Analytics platform represents my capstone machine learning project, 
-              showcasing full-stack development skills with modern technologies.
+              This Real Estate Analytics platform represents a full-stack machine learning project, 
+              showcasing modern development skills with cutting-edge technologies.
             </p>
             
             <div className="project-highlights">
@@ -46,22 +46,22 @@ const About = () => {
               <h4>Technical Stack:</h4>
               <ul>
                 <li><strong>Backend:</strong> Python, FastAPI, Scikit-learn, Pandas, NumPy</li>
-                <li><strong>Frontend:</strong> React, JavaScript (ES6+), Plotly, Vite</li>
+                <li><strong>Frontend:</strong> React, JavaScript (ES6+), Vite</li>
                 <li><strong>ML Models:</strong> Regression, Feature Engineering, Cross-validation</li>
-                <li><strong>Deployment:</strong> Render, Git, CI/CD</li>
+                <li><strong>Deployment:</strong> Render, Netlify, Git</li>
               </ul>
             </div>
 
             <div className="project-links">
               <a 
-                href="https://github.com/BantPawan/Pawan-Project/tree/main/Machine%20Learning%20Project" 
+                href="https://github.com/your-username/your-repo" 
                 className="btn btn-outline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 <i className="fab fa-github"></i> View Source Code
               </a>
-              <a href="mailto:bantpawan@gmail.com" className="btn btn-outline">
+              <a href="mailto:your-email@example.com" className="btn btn-outline">
                 <i className="fas fa-envelope"></i> Contact Me
               </a>
             </div>
@@ -87,10 +87,10 @@ X_train, X_test, y_train, y_test = train_test_split(
     features, target, test_size=0.2
 )
 
-# Model training with cross-validation
+# Model training
 model = RandomForestRegressor(n_estimators=100)
 scores = cross_val_score(model, X_train, y_train, cv=5)
-print(f"Accuracy: {scores.mean():.2f} (+/- {scores.std() * 2:.2f})")`}</code></pre>
+print(f"Accuracy: {scores.mean():.2f}")`}</code></pre>
               </div>
             </div>
           </div>
