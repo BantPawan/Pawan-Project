@@ -11,23 +11,23 @@ const Footer = () => {
             <i className="fas fa-robot"></i>
             <span>RealEstate<span className="ai-text">AI</span></span>
           </div>
-          <p>Machine Learning Project • Built with ❤️ for the developer community</p>
+          <p>Machine Learning Project • Built with modern technologies</p>
           <div className="footer-links">
             <a 
-              href="https://github.com/BantPawan/Pawan-Project"
+              href="https://github.com/your-username"
               target="_blank"
               rel="noopener noreferrer"
             >
               <i className="fab fa-github"></i>
             </a>
             <a 
-              href="https://www.linkedin.com/in/pawan-bant"
+              href="https://www.linkedin.com/in/your-profile"
               target="_blank"
               rel="noopener noreferrer"
             >
               <i className="fab fa-linkedin"></i>
             </a>
-            <a href="mailto:bantpawan@gmail.com">
+            <a href="mailto:your-email@example.com">
               <i className="fas fa-envelope"></i>
             </a>
           </div>
