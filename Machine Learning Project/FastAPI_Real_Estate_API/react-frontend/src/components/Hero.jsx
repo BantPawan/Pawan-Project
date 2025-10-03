@@ -19,24 +19,23 @@ const Hero = () => {
             <span className="gradient-text">AI-Powered</span> Real Estate Analytics
           </h1>
           <p className="hero-subtitle">
-            Machine Learning project that predicts property prices, analyzes market trends, and recommends apartments with 92% accuracy using 
-            <strong> FastAPI</strong>, <strong>React</strong>, and advanced data analytics
+            Machine Learning project that predicts property prices, analyzes market trends, and provides intelligent recommendations with 92% accuracy using FastAPI and React.
           </p>
           <div className="hero-stats">
             <div className="stat">
-              <div className="stat-number" id="stat-properties">
+              <div className="stat-number">
                 {stats.total_properties ? stats.total_properties.toLocaleString() : '10,000+'}
               </div>
               <div className="stat-label">Properties Analyzed</div>
             </div>
             <div className="stat">
-              <div className="stat-number" id="stat-accuracy">
+              <div className="stat-number">
                 {stats.model_accuracy || '92%'}
               </div>
               <div className="stat-label">Prediction Accuracy</div>
             </div>
             <div className="stat">
-              <div className="stat-number" id="stat-sectors">
+              <div className="stat-number">
                 {stats.sectors_covered || '50+'}
               </div>
               <div className="stat-label">Sectors Covered</div>
