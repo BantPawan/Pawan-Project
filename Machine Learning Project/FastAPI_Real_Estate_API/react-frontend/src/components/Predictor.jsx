@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRealEstateAPI } from '../hooks/useRealEstateAPI';
 
 const Predictor = () => {
@@ -20,32 +20,25 @@ const Predictor = () => {
   const [prediction, setPrediction] = useState(null);
   const [formError, setFormError] = useState('');
 
-  useEffect(() => {
-    if (error) {
-      setFormError(error);
-    }
-  }, [error]);
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    // Clear errors when user starts typing
     if (formError) setFormError('');
   };
 
   const validateForm = () => {
     const requiredFields = [
       'property_type', 'sector', 'bedrooms', 'bathroom', 'balcony', 
-      'property_age', 'built_up_area', 'servant_room', 'store_room',
-      'furnishing_type', 'luxury_category', 'floor_category'
+      'property_age', 'built_up_area', 'furnishing_type', 
+      'luxury_category', 'floor_category'
     ];
 
     const missingFields = requiredFields.filter(field => !formData[field]);
     if (missingFields.length > 0) {
-      setFormError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      setFormError('Please fill in all required fields');
       return false;
     }
 
@@ -64,25 +57,20 @@ const Predictor = () => {
 
     if (!validateForm()) return;
 
-    try {
-      const numericFields = ['bedrooms', 'bathroom', 'built_up_area', 'servant_room', 'store_room'];
-      const processedData = {
-        ...formData,
-        bedrooms: parseFloat(formData.bedrooms),
-        bathroom: parseFloat(formData.bathroom),
-        built_up_area: parseFloat(formData.built_up_area),
-        servant_room: parseFloat(formData.servant_room),
-        store_room: parseFloat(formData.store_room)
-      };
+    const processedData = {
+      ...formData,
+      bedrooms: parseFloat(formData.bedrooms),
+      bathroom: parseFloat(formData.bathroom),
+      built_up_area: parseFloat(formData.built_up_area),
+      servant_room: parseFloat(formData.servant_room),
+      store_room: parseFloat(formData.store_room)
+    };
 
-      const result = await predictPrice(processedData);
-      setPrediction(result);
-    } catch (err) {
-      // Error is handled in the hook
-    }
+    const result = await predictPrice(processedData);
+    setPrediction(result);
   };
 
-  const SelectField = ({ id, label, icon, options: fieldOptions, value, required = true }) => (
+  const SelectField = ({ id, label, icon, value, required = true }) => (
     <div className="form-group">
       <label htmlFor={id}>
         <i className={icon}></i> {label}
@@ -95,14 +83,14 @@ const Predictor = () => {
         required={required}
       >
         <option value="">Select...</option>
-        {fieldOptions?.map(option => (
+        {options[id]?.map(option => (
           <option key={option} value={option}>{option}</option>
         ))}
       </select>
     </div>
   );
 
-  const InputField = ({ id, label, icon, type = 'text', min, max, step, value, required = true }) => (
+  const InputField = ({ id, label, icon, type = 'text', value, required = true }) => (
     <div className="form-group">
       <label htmlFor={id}>
         <i className={icon}></i> {label}
@@ -113,9 +101,9 @@ const Predictor = () => {
         name={id}
         value={value}
         onChange={handleInputChange}
-        min={min}
-        max={max}
-        step={step}
+        min="500"
+        max="10000"
+        step="50"
         required={required}
       />
     </div>
@@ -137,21 +125,18 @@ const Predictor = () => {
                   id="property_type"
                   label="Property Type"
                   icon="fas fa-building"
-                  options={options.property_type}
                   value={formData.property_type}
                 />
                 <SelectField
                   id="sector"
                   label="Sector/Location"
                   icon="fas fa-map-marker-alt"
-                  options={options.sector}
                   value={formData.sector}
                 />
                 <SelectField
                   id="bedrooms"
                   label="Bedrooms"
                   icon="fas fa-bed"
-                  options={options.bedrooms}
                   value={formData.bedrooms}
                 />
               </div>
@@ -161,14 +146,12 @@ const Predictor = () => {
                   id="bathroom"
                   label="Bathrooms"
                   icon="fas fa-bath"
-                  options={options.bathroom}
                   value={formData.bathroom}
                 />
                 <SelectField
                   id="balcony"
                   label="Balconies"
                   icon="fas fa-door-open"
-                  options={options.balcony}
                   value={formData.balcony}
                 />
                 <InputField
@@ -176,9 +159,6 @@ const Predictor = () => {
                   label="Built-up Area (sq ft)"
                   icon="fas fa-arrows-alt"
                   type="number"
-                  min="500"
-                  max="10000"
-                  step="50"
                   value={formData.built_up_area}
                 />
               </div>
@@ -188,21 +168,18 @@ const Predictor = () => {
                   id="property_age"
                   label="Property Age"
                   icon="fas fa-calendar"
-                  options={options.property_age}
                   value={formData.property_age}
                 />
                 <SelectField
                   id="furnishing_type"
                   label="Furnishing Type"
                   icon="fas fa-couch"
-                  options={options.furnishing_type}
                   value={formData.furnishing_type}
                 />
                 <SelectField
                   id="luxury_category"
                   label="Luxury Category"
                   icon="fas fa-gem"
-                  options={options.luxury_category}
                   value={formData.luxury_category}
                 />
               </div>
@@ -214,7 +191,6 @@ const Predictor = () => {
                   id="servant_room"
                   label="Servant Room"
                   icon="fas fa-user"
-                  options={options.servant_room}
                   value={formData.servant_room}
                 />
               </div>
@@ -223,7 +199,6 @@ const Predictor = () => {
                   id="store_room"
                   label="Store Room"
                   icon="fas fa-box"
-                  options={options.store_room}
                   value={formData.store_room}
                 />
               </div>
@@ -232,7 +207,6 @@ const Predictor = () => {
                   id="floor_category"
                   label="Floor Category"
                   icon="fas fa-building"
-                  options={options.floor_category}
                   value={formData.floor_category}
                 />
               </div>
@@ -251,6 +225,13 @@ const Predictor = () => {
             <div className="error-message">
               <i className="fas fa-exclamation-triangle"></i>
               {formError}
+            </div>
+          )}
+          
+          {error && (
+            <div className="error-message">
+              <i className="fas fa-exclamation-triangle"></i>
+              {error}
             </div>
           )}
           
@@ -276,11 +257,8 @@ const Predictor = () => {
                   <span>High Estimate:</span>
                   <strong>₹ {prediction.high_price_cr} Cr</strong>
                 </div>
-                <div className="detail-item">
-                  <span>Best Value:</span>
-                  <strong>₹ {prediction.prediction_raw.toFixed(2)} Cr</strong>
-                </div>
               </div>
+              {prediction.note && <p className="note">{prediction.note}</p>}
             </div>
           )}
         </div>
