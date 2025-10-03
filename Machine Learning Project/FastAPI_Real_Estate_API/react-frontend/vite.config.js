@@ -1,26 +1,35 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import viteCompression from 'vite-plugin-compression'
 
 export default defineConfig({
-  plugins: [react()],
-  root: '.',
-  publicDir: 'public',
+  plugins: [
+    react(),
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+    })
+  ],
   build: {
-    outDir: 'dist',
-    emptyOutDir: true,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html')
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+        },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
-    }
+    },
+    chunkSizeWarningLimit: 600, // Increase warning limit to 600kb
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console logs in production
+      },
+    },
   },
   server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      }
-    }
+    port: 3000
   }
 })
