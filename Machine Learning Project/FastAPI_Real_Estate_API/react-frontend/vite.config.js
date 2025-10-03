@@ -4,26 +4,15 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  root: './',
   build: {
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'public/index.html')
-      },
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-        }
-      }
+      input: resolve(__dirname, 'public/index.html')
     },
-    chunkSizeWarningLimit: 1000,
+    outDir: 'dist'
   },
+  publicDir: 'public',
   server: {
-    port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      }
-    }
+    port: 3000
   }
 })
