@@ -5,7 +5,7 @@ const Features = () => {
     {
       icon: 'fas fa-brain',
       title: 'Machine Learning',
-      description: 'Advanced regression models trained on 10,000+ property records with 92% prediction accuracy'
+      description: 'Advanced regression models trained on 3500+ property records with 92% prediction accuracy'
     },
     {
       icon: 'fas fa-bolt',
@@ -20,7 +20,7 @@ const Features = () => {
     {
       icon: 'fas fa-thumbs-up',
       title: 'Recommendations',
-      description: 'Personalized apartment recommendations based on similarity scores'
+      description: 'Personalized property recommendations based on similarity scores'
     },
     {
       icon: 'fas fa-mobile-alt',
