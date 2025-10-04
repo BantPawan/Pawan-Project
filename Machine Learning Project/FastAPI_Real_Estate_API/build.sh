@@ -9,10 +9,7 @@ echo "📦 Building React frontend..."
 cd frontend
 
 # Install dependencies
-if [ ! -d "node_modules" ]; then
-    echo "Installing frontend dependencies..."
-    npm install
-fi
+npm install
 
 echo "🔨 Building React app..."
 npm run build
@@ -32,11 +29,5 @@ mkdir -p backend/static
 # Copy ALL files from frontend/dist to backend/static
 echo "📋 Copying built files..."
 cp -r frontend/dist/* backend/static/
-
-# Verify the files were copied
-echo "📁 Backend static contents:"
-ls -la backend/static/
-echo "📁 Assets directory:"
-ls -la backend/static/assets/ 2>/dev/null || echo "No assets directory"
 
 echo "🎉 Build completed successfully!"
