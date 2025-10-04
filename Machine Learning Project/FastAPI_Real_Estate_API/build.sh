@@ -20,7 +20,7 @@ fi
 echo "🔨 Building React frontend..."
 npm run build
 
-# Move back to FastAPI folder root
+# Move back to root
 cd ..
 
 # Install backend dependencies
@@ -31,14 +31,20 @@ pip install -r backend/requirements.txt
 echo "📁 Setting up static files..."
 mkdir -p backend/static
 
-# typical build outputs: frontend/dist or frontend/build
+# Copy build outputs
 if [ -d frontend/dist ]; then
   cp -r frontend/dist/* backend/static/
+  echo "✅ Copied frontend/dist to backend/static"
 elif [ -d frontend/build ]; then
   cp -r frontend/build/* backend/static/
+  echo "✅ Copied frontend/build to backend/static"
 else
   echo "❌ Frontend build output not found (expected frontend/dist or frontend/build)"
   exit 1
 fi
+
+# Debug: List static contents
+echo "📋 Backend static contents:"
+ls -la backend/static/
 
 echo "🎉 Build completed successfully!"
