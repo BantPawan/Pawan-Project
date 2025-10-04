@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Helper to normalize endpoint (fix double /api)
+// Normalize to fix double /api (e.g., /api/api/options -> /api/options)
 const normalizeEndpoint = (endpoint) => {
+  console.log(`Normalizing: base="${API_BASE}", ep="${endpoint}"`);  // Debug log
   let base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
   let ep = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
   if (base.endsWith('/api') && ep.startsWith('/api')) {
-    ep = ep.replace('/api', '');  // Strip extra /api
+    ep = ep.replace(/^\/api/, '');  // Strip leading /api
   }
-  return base + ep;
+  const full = base + ep;
+  console.log(`Normalized to: ${full}`);  // Debug
+  return full;
 };
 
 export const useRealEstateAPI = () => {
@@ -24,14 +27,17 @@ export const useRealEstateAPI = () => {
 
   const loadInitialData = async () => {
     try {
-      const [optionsData, statsData] = await Promise.all([
-        fetch(normalizeEndpoint('/api/options')).then(res => res.json()),
-        fetch(normalizeEndpoint('/api/stats')).then(res => res.json())
+      const [optionsRes, statsRes] = await Promise.all([
+        fetch(normalizeEndpoint('/api/options')),
+        fetch(normalizeEndpoint('/api/stats'))
       ]);
+      if (!optionsRes.ok || !statsRes.ok) throw new Error('API fetch failed');
+      const [optionsData, statsData] = await Promise.all([optionsRes.json(), statsRes.json()]);
       setOptions(optionsData);
       setStats(statsData);
+      console.log('Loaded real options/stats:', optionsData, statsData);  // Debug
     } catch (err) {
-      console.log('Using fallback data');
+      console.error('Fallback to mocks:', err);
       setOptions({
         property_type: ["flat", "house"],
         sector: ["sector 45", "sector 46", "sector 47"],
@@ -59,19 +65,16 @@ export const useRealEstateAPI = () => {
     try {
       const response = await fetch(normalizeEndpoint('/api/predict_price'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      
-      if (!response.ok) throw new Error('Prediction failed');
-      
+      if (!response.ok) throw new Error(await response.text());
       const result = await response.json();
+      console.log('Real prediction:', result);  // Debug
       return result;
     } catch (err) {
       setError(err.message);
-      // Return mock prediction
+      console.error('Prediction fallback:', err);
       return {
         formatted_range: "₹ 1.20 Cr - ₹ 1.50 Cr",
         low_price_cr: 1.20,
@@ -86,66 +89,21 @@ export const useRealEstateAPI = () => {
   const loadAnalysisData = async (endpoint) => {
     try {
       const response = await fetch(normalizeEndpoint(endpoint));
-      if (!response.ok) throw new Error(`Failed to load ${endpoint}`);
-      return await response.json();
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      console.log(`Loaded real ${endpoint}:`, data);  // Debug
+      return data;
     } catch (err) {
-      console.log(`Using mock data for ${endpoint}`);
-      // Return mock data
-      if (endpoint.includes('geomap')) {
-        return {
-          sectors: ["Sector 45", "Sector 46", "Sector 47"],
-          price_per_sqft: [8500, 9200, 7800],
-          built_up_area: [1200, 1500, 1800],
-          latitude: [28.4595, 28.4612, 28.4630],
-          longitude: [77.0266, 77.0280, 77.0300]
-        };
-      }
-      if (endpoint.includes('area-vs-price')) {
-        return {
-          built_up_area: [1200, 1500, 1800],
-          price: [1.2, 1.5, 1.8],
-          bedrooms: [2, 3, 4]
-        };
-      }
-      if (endpoint.includes('bhk-pie')) {
-        return {
-          bedrooms: [2, 3, 4],
-          counts: [30, 45, 25]
-        };
-      }
-      if (endpoint.includes('recommender/options')) {
-        return {
-          locations: ["Sector 45", "Sector 46", "Sector 47"],
-          apartments: ["Grand Apartments", "Modern Villas", "Luxury Homes"],
-          sectors: ["sector 45", "sector 46", "sector 47"]
-        };
-      }
-      if (endpoint.includes('location-search')) {
-        return [
-          { property: "Grand Apartments", distance: 0.8 },
-          { property: "Modern Villas", distance: 1.2 },
-          { property: "Luxury Homes", distance: 0.5 },
-          { property: "Green Valley Apartments", distance: 1.8 }
-        ];
-      }
-      if (endpoint.includes('recommend')) {
-        return [
-          { PropertyName: "Similar Apartment A", SimilarityScore: 0.95 },
-          { PropertyName: "Similar Apartment B", SimilarityScore: 0.89 },
-          { PropertyName: "Similar Apartment C", SimilarityScore: 0.82 },
-          { PropertyName: "Similar Apartment D", SimilarityScore: 0.78 }
-        ];
-      }
+      console.error(`Mock for ${endpoint}:`, err);
+      // Specific mocks only on error
+      if (endpoint.includes('wordcloud')) return { image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==' };  // Tiny placeholder
+      if (endpoint.includes('geomap')) return { sectors: ["Sector 45"], price_per_sqft: [8500], built_up_area: [1200], latitude: [28.4595], longitude: [77.0266], property_count: [150] };
+      if (endpoint.includes('area-vs-price')) return { built_up_area: [1200], price: [1.2], bedrooms: [2] };
+      if (endpoint.includes('bhk-pie')) return { bedrooms: [2], counts: [30] };
+      if (endpoint.includes('price-dist')) return { house_prices: [1.5], flat_prices: [1.2] };
       return {};
     }
   };
 
-  return {
-    options,
-    stats,
-    loading,
-    error,
-    predictPrice,
-    loadAnalysisData
-  };
+  return { options, stats, loading, error, predictPrice, loadAnalysisData };
 };
