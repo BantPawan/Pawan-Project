@@ -1,26 +1,17 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-// Normalize to fix double /api (e.g., /api/api/options -> /api/options)
-const normalizeEndpoint = (endpoint) => {
-  console.log(`Normalizing: base="${API_BASE}", ep="${endpoint}"`);  // Debug log
-  let base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
-  let ep = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
-  if (base.endsWith('/api') && ep.startsWith('/api')) {
-    ep = ep.replace(/^\/api/, '');  // Strip leading /api
-  }
-  const full = base + ep;
-  console.log(`Normalized to: ${full}`);  // Debug
-  return full;
-};
+// Use Render URL in production, localhost in development
+const API_BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8000/api' 
+  : '/api';
 
 export const useRealEstateAPI = () => {
   const [options, setOptions] = useState({});
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
+  // Load options and stats on component mount
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -28,82 +19,119 @@ export const useRealEstateAPI = () => {
   const loadInitialData = async () => {
     try {
       const [optionsRes, statsRes] = await Promise.all([
-        fetch(normalizeEndpoint('/api/options')),
-        fetch(normalizeEndpoint('/api/stats'))
+        fetch(`${API_BASE}/options`).then(res => res.json()),
+        fetch(`${API_BASE}/stats`).then(res => res.json())
       ]);
-      if (!optionsRes.ok || !statsRes.ok) throw new Error('API fetch failed');
-      const [optionsData, statsData] = await Promise.all([optionsRes.json(), statsRes.json()]);
-      setOptions(optionsData);
-      setStats(statsData);
-      console.log('Loaded real options/stats:', optionsData, statsData);  // Debug
+      
+      setOptions(optionsRes);
+      setStats(statsRes);
     } catch (err) {
-      console.error('Fallback to mocks:', err);
+      console.log('Using fallback data');
       setOptions({
-        property_type: ["flat", "house"],
-        sector: ["sector 45", "sector 46", "sector 47"],
+        property_type: ["apartment", "house"],
+        sector: ["sector 1", "sector 2", "sector 3"],
         bedrooms: [2, 3, 4],
-        bathroom: [2, 3],
+        bathroom: [1, 2, 3],
         balcony: ["1", "2", "3"],
-        property_age: ["New Property", "Relatively New"],
+        property_age: ["New Property", "1-5 years", "5-10 years"],
         servant_room: [0, 1],
         store_room: [0, 1],
-        furnishing_type: ["unfurnished", "semifurnished", "furnished"],
+        furnishing_type: ["Unfurnished", "Semi-Furnished", "Furnished"],
         luxury_category: ["Low", "Medium", "High"],
-        floor_category: ["Low Floor", "Mid Floor", "High Floor"]
+        floor_category: ["Low Rise", "Mid Rise", "High Rise"]
       });
       setStats({
         total_properties: 10000,
         model_accuracy: "92%",
-        sectors_covered: 50
+        sectors_covered: 50,
+        avg_price: "₹ 1.25 Cr"
       });
     }
   };
 
   const predictPrice = async (formData) => {
     setLoading(true);
-    setError('');
+    setError(null);
+    
     try {
-      const response = await fetch(normalizeEndpoint('/api/predict_price'), {
+      const response = await fetch(`${API_BASE}/predict_price`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(formData),
       });
-      if (!response.ok) throw new Error(await response.text());
-      const result = await response.json();
-      console.log('Real prediction:', result);  // Debug
-      return result;
-    } catch (err) {
-      setError(err.message);
-      console.error('Prediction fallback:', err);
-      return {
-        formatted_range: "₹ 1.20 Cr - ₹ 1.50 Cr",
-        low_price_cr: 1.20,
-        high_price_cr: 1.50,
-        note: "Demo prediction - backend might be loading"
-      };
-    } finally {
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
       setLoading(false);
+      return data;
+    } catch (err) {
+      console.error('Prediction error:', err);
+      setError('Prediction service temporarily unavailable. Using demo data.');
+      setLoading(false);
+      // Return demo data
+      return {
+        low_price_cr: 1.25,
+        high_price_cr: 1.45,
+        formatted_range: "₹ 1.25 Cr - ₹ 1.45 Cr",
+        note: "Demo prediction - backend service unavailable"
+      };
     }
   };
 
   const loadAnalysisData = async (endpoint) => {
     try {
-      const response = await fetch(normalizeEndpoint(endpoint));
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      console.log(`Loaded real ${endpoint}:`, data);  // Debug
-      return data;
+      const response = await fetch(`${API_BASE}${endpoint}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
     } catch (err) {
-      console.error(`Mock for ${endpoint}:`, err);
-      // Specific mocks only on error
-      if (endpoint.includes('wordcloud')) return { image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==' };  // Tiny placeholder
-      if (endpoint.includes('geomap')) return { sectors: ["Sector 45"], price_per_sqft: [8500], built_up_area: [1200], latitude: [28.4595], longitude: [77.0266], property_count: [150] };
-      if (endpoint.includes('area-vs-price')) return { built_up_area: [1200], price: [1.2], bedrooms: [2] };
-      if (endpoint.includes('bhk-pie')) return { bedrooms: [2], counts: [30] };
-      if (endpoint.includes('price-dist')) return { house_prices: [1.5], flat_prices: [1.2] };
-      return {};
+      console.error(`Error loading ${endpoint}:`, err);
+      // Return fallback data based on endpoint
+      if (endpoint.includes('geomap')) {
+        return {
+          sectors: ["sector 1", "sector 2", "sector 3"],
+          price_per_sqft: [5000, 6000, 5500],
+          built_up_area: [1000, 1200, 1100],
+          latitude: [28.45, 28.46, 28.47],
+          longitude: [77.02, 77.03, 77.04],
+          property_count: [10, 15, 8]
+        };
+      }
+      if (endpoint.includes('area-vs-price')) {
+        return {
+          built_up_area: [1000, 1200, 1400, 1600, 1800],
+          price: [1.2, 1.4, 1.6, 1.8, 2.0],
+          bedrooms: [2, 3, 3, 4, 4]
+        };
+      }
+      if (endpoint.includes('bhk-pie')) {
+        return {
+          bedrooms: [2, 3, 4],
+          counts: [45, 35, 20]
+        };
+      }
+      if (endpoint.includes('price-dist')) {
+        return {
+          house_prices: [1.2, 1.5, 1.8, 2.1, 2.4],
+          flat_prices: [0.8, 1.0, 1.2, 1.4, 1.6]
+        };
+      }
+      return null;
     }
   };
 
-  return { options, stats, loading, error, predictPrice, loadAnalysisData };
+  return {
+    options,
+    stats,
+    loading,
+    error,
+    predictPrice,
+    loadAnalysisData
+  };
 };
