@@ -1,35 +1,44 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "🚀 Starting build process..."
 
-# Install frontend dependencies
-echo "📦 Installing frontend dependencies..."
-cd "Machine Learning Project/FastAPI_Real_Estate_API/frontend"
-npm install
+# Show current directory for debug
+echo "Working dir: $(pwd)"
+echo "Listing repo root:"
+ls -la
 
 # Build frontend
+echo "📦 Installing frontend dependencies..."
+cd frontend
+if [ -f package-lock.json ]; then
+  npm ci
+else
+  npm install
+fi
+
 echo "🔨 Building React frontend..."
 npm run build
 
-# Check if build was successful
-if [ $? -eq 0 ]; then
-    echo "✅ Frontend build successful"
-else
-    echo "❌ Frontend build failed"
-    exit 1
-fi
-
-# Go back to project root
-cd ../..
+# Move back to FastAPI folder root
+cd ..
 
 # Install backend dependencies
 echo "🐍 Installing backend dependencies..."
-cd "Machine Learning Project/FastAPI_Real_Estate_API/backend"
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
-# Create static directory for frontend files
+# Create backend static directory and copy frontend build artifacts
 echo "📁 Setting up static files..."
-mkdir -p static
-cp -r ../frontend/dist/* static/
+mkdir -p backend/static
+
+# typical build outputs: frontend/dist or frontend/build
+if [ -d frontend/dist ]; then
+  cp -r frontend/dist/* backend/static/
+elif [ -d frontend/build ]; then
+  cp -r frontend/build/* backend/static/
+else
+  echo "❌ Frontend build output not found (expected frontend/dist or frontend/build)"
+  exit 1
+fi
 
 echo "🎉 Build completed successfully!"
