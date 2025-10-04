@@ -27,24 +27,21 @@ cd ..
 echo "🐍 Installing backend dependencies..."
 pip install -r backend/requirements.txt
 
-# Create backend static directory and copy frontend build artifacts
+# Create backend static directory
 echo "📁 Setting up static files..."
 mkdir -p backend/static
 
-# Copy build outputs
-if [ -d frontend/dist ]; then
-  cp -r frontend/dist/* backend/static/
-  echo "✅ Copied frontend/dist to backend/static"
-elif [ -d frontend/build ]; then
-  cp -r frontend/build/* backend/static/
-  echo "✅ Copied frontend/build to backend/static"
-else
-  echo "❌ Frontend build output not found (expected frontend/dist or frontend/build)"
-  exit 1
+# Copy built files: index.html to root of static/, assets/ to static/assets/
+cp frontend/dist/index.html backend/static/index.html
+cp -r frontend/dist/assets backend/static/assets 2>/dev/null || echo "No assets dir (fine for first build)"
+# Copy any public/ leftovers (e.g., favicon) if needed
+if [ -d "frontend/dist/*.ico" ] || [ -d "frontend/public" ]; then
+  cp -r frontend/public/* backend/static/ 2>/dev/null || true
 fi
 
 # Debug: List static contents
 echo "📋 Backend static contents:"
 ls -la backend/static/
+ls -la backend/static/assets/ 2>/dev/null || echo "No assets yet"
 
 echo "🎉 Build completed successfully!"
