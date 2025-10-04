@@ -1,7 +1,6 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import joblib
 import pandas as pd
@@ -37,8 +36,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files for React frontend
-app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
+# API Router for /api prefix
+router = APIRouter()
+
+# Serve static files for React frontend (SPA mode)
+app.mount("/", StaticFiles(directory=STATIC_PATH, html=True), name="static")
 
 class PropertyInput(BaseModel):
     property_type: str
@@ -200,17 +202,11 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}")
 
-# Serve React app
-@app.get("/")
-async def serve_frontend():
-    return FileResponse(os.path.join(STATIC_PATH, "index.html"))
+# Include API router
+app.include_router(router, prefix="/api")
 
-@app.get("/{full_path:path}")
-async def serve_frontend_path(full_path: str):
-    return FileResponse(os.path.join(STATIC_PATH, "index.html"))
-
-# API endpoints
-@app.get("/api/", response_model=APIResponse)
+# API endpoints on router
+@router.get("/", response_model=APIResponse)
 async def root():
     """Root endpoint with API information"""
     return APIResponse(
@@ -219,17 +215,17 @@ async def root():
         data={
             "version": "2.0.0",
             "endpoints": {
-                "health": "/api/health",
-                "prediction": "/api/predict_price (POST)",
-                "options": "/api/options",
-                "analysis": "/api/analysis/geomap",
-                "recommender": "/api/recommender/options"
+                "health": "/health",
+                "prediction": "/predict_price (POST)",
+                "options": "/options",
+                "analysis": "/analysis/geomap",
+                "recommender": "/recommender/options"
             }
         },
         timestamp=datetime.now().isoformat()
     )
 
-@app.get("/api/health")
+@router.get("/health")
 async def health_check():
     """Health check endpoint"""
     validate_data_loaded()
@@ -243,7 +239,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/api/options")
+@router.get("/options")
 async def get_options():
     """Get all available options for dropdowns"""
     validate_data_loaded()
@@ -279,7 +275,7 @@ async def get_options():
             "floor_category": ["Low Floor", "Mid Floor", "High Floor"]
         }
 
-@app.get("/api/stats")
+@router.get("/stats")
 async def get_stats():
     """Get API statistics"""
     validate_data_loaded()
@@ -311,7 +307,7 @@ async def get_stats():
             "last_updated": datetime.now().strftime("%Y-%m-%d")
         }
 
-@app.post("/api/predict_price")
+@router.post("/predict_price")
 async def predict_price(input: PropertyInput):
     """Predict property price based on input features"""
     validate_data_loaded()
@@ -355,7 +351,7 @@ async def predict_price(input: PropertyInput):
         }
 
 # Analysis endpoints
-@app.get("/api/analysis/geomap")
+@router.get("/analysis/geomap")
 async def get_geomap(property_type: str = Query(None, description="Filter by property type")):
     """Get geographic map data for sectors"""
     validate_data_loaded()
@@ -400,7 +396,7 @@ async def get_geomap(property_type: str = Query(None, description="Filter by pro
             "filters_applied": {"property_type": property_type} if property_type else {}
         }
 
-@app.get("/api/analysis/area-vs-price")
+@router.get("/analysis/area-vs-price")
 async def get_area_vs_price(property_type: str = Query("flat", description="Property type filter")):
     """Get area vs price correlation data"""
     validate_data_loaded()
@@ -433,7 +429,7 @@ async def get_area_vs_price(property_type: str = Query("flat", description="Prop
             "filters_applied": {"property_type": property_type}
         }
 
-@app.get("/api/analysis/bhk-pie")
+@router.get("/analysis/bhk-pie")
 async def get_bhk_pie(sector: str = Query("overall", description="Sector filter")):
     """Get BHK distribution data"""
     validate_data_loaded()
@@ -465,8 +461,36 @@ async def get_bhk_pie(sector: str = Query("overall", description="Sector filter"
             "filters_applied": {"sector": sector}
         }
 
+@router.get("/analysis/price-dist")
+async def get_price_distribution():
+    """Get price distribution data"""
+    validate_data_loaded()
+    
+    try:
+        # Determine price column
+        price_column = 'price'
+        for col in ['price', 'Price', 'price_cr', 'Price_in_cr']:
+            if col in data_viz.columns:
+                price_column = col
+                break
+        
+        house_prices = []
+        flat_prices = []
+        
+        if "property_type" in data_viz.columns and price_column in data_viz.columns:
+            house_prices = data_viz[data_viz["property_type"] == "house"][price_column].dropna().tolist()
+            flat_prices = data_viz[data_viz["property_type"] == "flat"][price_column].dropna().tolist()
+        
+        return {
+            "house_prices": house_prices,
+            "flat_prices": flat_prices
+        }
+    except Exception as e:
+        logger.error(f"Error loading price distribution data: {e}")
+        raise HTTPException(status_code=500, detail=f"Error loading price distribution data: {str(e)}")
+
 # Recommender endpoints
-@app.get("/api/recommender/options")
+@router.get("/recommender/options")
 async def get_recommender_options():
     """Get recommender system options"""
     validate_data_loaded()
@@ -496,7 +520,7 @@ async def get_recommender_options():
             "sectors": ["sector 45", "sector 46", "sector 47"]
         }
 
-@app.get("/api/recommender/location-search")
+@router.get("/recommender/location-search")
 async def location_search(location: str = Query(..., description="Location to search from"), 
                          radius: float = Query(..., description="Search radius in kilometers")):
     """Search properties within radius of location"""
@@ -528,7 +552,7 @@ async def location_search(location: str = Query(..., description="Location to se
             {"property": "Luxury Homes", "distance": 0.5}
         ]
 
-@app.get("/api/recommender/recommend")
+@router.get("/recommender/recommend")
 async def recommend_properties(property_name: str = Query(..., description="Property name to find similar"), 
                               top_n: int = Query(5, description="Number of recommendations")):
     """Get property recommendations based on similarity"""
