@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js for frontend build
+# Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs
 
-# Copy backend requirements first
+# Copy backend requirements
 COPY backend/requirements.txt .
 
 # Install Python dependencies
@@ -23,8 +23,7 @@ COPY . .
 
 # Build frontend
 WORKDIR /app/frontend
-RUN npm install
-RUN npm run build
+RUN npm install && npm run build
 
 # Move built files to backend static directory
 WORKDIR /app
