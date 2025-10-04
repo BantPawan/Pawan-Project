@@ -4,7 +4,7 @@ echo "🚀 Starting build process..."
 
 # Install frontend dependencies
 echo "📦 Installing frontend dependencies..."
-cd frontend
+cd "Machine Learning Project/FastAPI_Real_Estate_API/frontend"
 npm install
 
 # Build frontend
@@ -19,12 +19,17 @@ else
     exit 1
 fi
 
-# Go back to root directory
-cd ..
+# Go back to project root
+cd ../..
 
 # Install backend dependencies
 echo "🐍 Installing backend dependencies..."
-cd backend
+cd "Machine Learning Project/FastAPI_Real_Estate_API/backend"
 pip install -r requirements.txt
+
+# Create static directory for frontend files
+echo "📁 Setting up static files..."
+mkdir -p static
+cp -r ../frontend/dist/* static/
 
 echo "🎉 Build completed successfully!"
