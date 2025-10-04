@@ -122,60 +122,7 @@ def load_data():
         
     except Exception as e:
         logger.error(f"❌ Critical error loading data: {e}")
-        # Create mock data for demo
-        create_mock_data()
-
-def create_mock_data():
-    """Create mock data for demo purposes"""
-    global df, pipeline, data_viz, location_df, cosine_sim1, cosine_sim2, cosine_sim3
-    
-    logger.info("🔄 Creating mock data for demo...")
-    
-    # Mock DataFrame
-    df = pd.DataFrame({
-        'property_type': ['flat', 'house'],
-        'sector': ['sector 45', 'sector 46'],
-        'bedRoom': [2, 3],
-        'bathroom': [2, 3],
-        'balcony': ['1', '2'],
-        'agePossession': ['New Property', 'Relatively New'],
-        'built_up_area': [1200, 1500],
-        'servant room': [0, 1],
-        'store room': [0, 1],
-        'furnishing_type': ['unfurnished', 'furnished'],
-        'luxury_category': ['Low', 'Medium'],
-        'floor_category': ['Low Floor', 'Mid Floor']
-    })
-    
-    # Mock pipeline
-    class MockPipeline:
-        def predict(self, X):
-            return np.array([13.5])  # Mock prediction
-    
-    pipeline = MockPipeline()
-    
-    # Mock visualization data
-    data_viz = pd.DataFrame({
-        'sector': ['sector 45', 'sector 46', 'sector 47'],
-        'price_per_sqft': [8500, 9200, 7800],
-        'built_up_area': [1200, 1500, 1800],
-        'latitude': [28.4595, 28.4612, 28.4630],
-        'longitude': [77.0266, 77.0280, 77.0300],
-        'price': [1.2, 1.5, 1.8],
-        'property_type': ['flat', 'flat', 'house'],
-        'bedRoom': [2, 3, 4]
-    })
-    
-    # Mock location data
-    location_df = pd.DataFrame()
-    
-    # Mock cosine similarity matrices
-    size = 100
-    cosine_sim1 = np.eye(size)
-    cosine_sim2 = np.eye(size)
-    cosine_sim3 = np.eye(size)
-    
-    logger.info("✅ Mock data created successfully")
+        raise HTTPException(status_code=500, detail=f"Data loading failed: {str(e)}")
 
 def load_cosine_similarity_matrices():
     """Load cosine similarity matrices with fallbacks"""
@@ -215,13 +162,12 @@ async def startup_event():
         # Dynamically compute model accuracy (R2 from CV)
         if not df.empty and pipeline is not None:
             try:
-                # Features from training (exclude 'price' if present)
                 feature_cols = ['property_type', 'sector', 'bedRoom', 'bathroom', 'balcony',
                                 'agePossession', 'built_up_area', 'servant room', 'store room',
                                 'furnishing_type', 'luxury_category', 'floor_category']
                 if all(col in df.columns for col in feature_cols) and 'price' in df.columns:
                     X = df[feature_cols]
-                    y = np.log1p(df['price'])  # As per training (expm1 on predict)
+                    y = np.log1p(df['price'])
                     cv_scores = cross_val_score(pipeline, X, y, cv=5, scoring='r2')
                     model_accuracy = f"{cv_scores.mean():.1%}"
                     logger.info(f"✅ Model accuracy computed: {model_accuracy} (CV R² scores: {cv_scores})")
@@ -236,6 +182,7 @@ async def startup_event():
             
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Startup failed: {str(e)}")
 
 # Include API router
 app.include_router(router, prefix="/api")
@@ -295,20 +242,7 @@ async def get_options():
         }
     except Exception as e:
         logger.error(f"Error loading options: {e}")
-        # Return mock options
-        return {
-            "property_type": ["flat", "house"],
-            "sector": ["sector 45", "sector 46", "sector 47"],
-            "bedrooms": [2, 3, 4],
-            "bathroom": [2, 3],
-            "balcony": ["1", "2", "3"],
-            "property_age": ["New Property", "Relatively New"],
-            "servant_room": [0, 1],
-            "store_room": [0, 1],
-            "furnishing_type": ["unfurnished", "semifurnished", "furnished"],
-            "luxury_category": ["Low", "Medium", "High"],
-            "floor_category": ["Low Floor", "Mid Floor", "High Floor"]
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load options: {str(e)}")
 
 @router.get("/stats")
 async def get_stats():
@@ -316,7 +250,6 @@ async def get_stats():
     validate_data_loaded()
     
     try:
-        # Determine price column in df (full dataset)
         price_column = 'price'
         for col in ['price', 'Price', 'price_cr', 'Price_in_cr']:
             if col in df.columns:
@@ -326,21 +259,15 @@ async def get_stats():
         avg_price = df[price_column].mean() if price_column in df.columns else 1.25
         
         return {
-            "total_properties": len(df),  # Real from full df (3247)
-            "model_accuracy": model_accuracy,  # Dynamic from CV (e.g., "89.2%")
-            "sectors_covered": len(df["sector"].unique()) if "sector" in df.columns else 50,  # Real unique sectors
+            "total_properties": len(df),
+            "model_accuracy": model_accuracy,
+            "sectors_covered": len(df["sector"].unique()) if "sector" in df.columns else 50,
             "avg_price": f"₹ {avg_price:.2f} Cr",
             "last_updated": datetime.now().strftime("%Y-%m-%d")
         }
     except Exception as e:
         logger.error(f"Error in get_stats: {e}")
-        return {
-            "total_properties": 10000,
-            "model_accuracy": "92%",
-            "sectors_covered": 50,
-            "avg_price": "₹ 1.25 Cr",
-            "last_updated": datetime.now().strftime("%Y-%m-%d")
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load stats: {str(e)}")
 
 @router.post("/predict_price")
 async def predict_price(input: PropertyInput):
@@ -348,7 +275,6 @@ async def predict_price(input: PropertyInput):
     validate_data_loaded()
     
     try:
-        # Prepare input data
         one_df = pd.DataFrame([[
             input.property_type, input.sector, input.bedrooms, input.bathroom,
             input.balcony, input.property_age, input.built_up_area,
@@ -360,9 +286,8 @@ async def predict_price(input: PropertyInput):
             'furnishing_type', 'luxury_category', 'floor_category'
         ])
 
-        # Make prediction
         base_price = np.expm1(pipeline.predict(one_df))[0]
-        low_price = max(0.1, base_price - 0.22)  # Ensure positive price
+        low_price = max(0.1, base_price - 0.22)
         high_price = base_price + 0.22
 
         return {
@@ -375,15 +300,7 @@ async def predict_price(input: PropertyInput):
         
     except Exception as e:
         logger.error(f"Prediction error: {e}")
-        # Return mock prediction
-        return {
-            "prediction_raw": 1.35,
-            "low_price_cr": 1.20,
-            "high_price_cr": 1.50,
-            "formatted_range": "₹ 1.20 Cr - ₹ 1.50 Cr",
-            "timestamp": datetime.now().isoformat(),
-            "note": "Demo prediction - using mock data"
-        }
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 @router.get("/analysis/geomap")
 async def get_geomap(property_type: str = Query(None, description="Filter by property type")):
@@ -395,7 +312,6 @@ async def get_geomap(property_type: str = Query(None, description="Filter by pro
         if property_type and "property_type" in data_viz.columns:
             filtered_data = filtered_data[filtered_data["property_type"] == property_type]
         
-        # Group by sector and calculate averages
         group_df = filtered_data.groupby("sector").agg({
             "price_per_sqft": "mean",
             "built_up_area": "mean",
@@ -403,7 +319,6 @@ async def get_geomap(property_type: str = Query(None, description="Filter by pro
             "longitude": "mean"
         }).reset_index()
         
-        # Calculate property counts
         property_count = filtered_data["sector"].value_counts().to_dict()
         group_df["property_count"] = group_df["sector"].map(property_count)
         group_df = group_df.dropna(subset=["latitude", "longitude"])
@@ -419,16 +334,7 @@ async def get_geomap(property_type: str = Query(None, description="Filter by pro
         }
     except Exception as e:
         logger.error(f"Error loading geomap data: {e}")
-        # Return mock data
-        return {
-            "sectors": ["Sector 45", "Sector 46", "Sector 47"],
-            "price_per_sqft": [8500, 9200, 7800],
-            "built_up_area": [1200, 1500, 1800],
-            "latitude": [28.4595, 28.4612, 28.4630],
-            "longitude": [77.0266, 77.0280, 77.0300],
-            "property_count": [150, 200, 120],
-            "filters_applied": {"property_type": property_type} if property_type else {}
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load geomap data: {str(e)}")
 
 @router.get("/analysis/wordcloud")
 async def get_wordcloud():
@@ -451,7 +357,6 @@ async def get_wordcloud():
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis("off")
         
-        # Convert to base64 PNG
         buf = io.BytesIO()
         plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
         buf.seek(0)
@@ -469,7 +374,6 @@ async def get_area_vs_price(property_type: str = Query("flat", description="Prop
     validate_data_loaded()
     
     try:
-        # Determine price column
         price_column = 'price'
         for col in ['price', 'Price', 'price_cr', 'Price_in_cr']:
             if col in data_viz.columns:
@@ -478,7 +382,7 @@ async def get_area_vs_price(property_type: str = Query("flat", description="Prop
         
         filtered_df = data_viz
         if property_type and "property_type" in data_viz.columns:
-            filtered_df = filtered_df[filtered_df["property_type"] == property_type]
+            filtered_df = filtered_df[filtered_data["property_type"] == property_type]
         
         return {
             "built_up_area": filtered_df["built_up_area"].tolist() if "built_up_area" in filtered_df.columns else [],
@@ -488,13 +392,7 @@ async def get_area_vs_price(property_type: str = Query("flat", description="Prop
         }
     except Exception as e:
         logger.error(f"Error loading area vs price data: {e}")
-        # Return mock data
-        return {
-            "built_up_area": [1200, 1500, 1800, 2000, 2200],
-            "price": [1.2, 1.5, 1.8, 2.1, 2.4],
-            "bedrooms": [2, 3, 3, 4, 4],
-            "filters_applied": {"property_type": property_type}
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load area vs price data: {str(e)}")
 
 @router.get("/analysis/bhk-pie")
 async def get_bhk_pie(sector: str = Query("overall", description="Sector filter")):
@@ -515,18 +413,10 @@ async def get_bhk_pie(sector: str = Query("overall", description="Sector filter"
                 "filters_applied": {"sector": sector}
             }
         else:
-            return {
-                "bedrooms": [2, 3, 4],
-                "counts": [30, 45, 25],
-                "filters_applied": {"sector": sector}
-            }
+            raise HTTPException(status_code=500, detail="bedRoom column not found")
     except Exception as e:
         logger.error(f"Error loading BHK pie data: {e}")
-        return {
-            "bedrooms": [2, 3, 4],
-            "counts": [30, 45, 25],
-            "filters_applied": {"sector": sector}
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load BHK pie data: {str(e)}")
 
 @router.get("/analysis/price-dist")
 async def get_price_distribution():
@@ -534,7 +424,6 @@ async def get_price_distribution():
     validate_data_loaded()
     
     try:
-        # Determine price column
         price_column = 'price'
         for col in ['price', 'Price', 'price_cr', 'Price_in_cr']:
             if col in data_viz.columns:
@@ -556,7 +445,6 @@ async def get_price_distribution():
         logger.error(f"Error loading price distribution data: {e}")
         raise HTTPException(status_code=500, detail=f"Error loading price distribution data: {str(e)}")
 
-# Recommender endpoints
 @router.get("/recommender/options")
 async def get_recommender_options():
     """Get recommender system options"""
@@ -581,11 +469,7 @@ async def get_recommender_options():
         }
     except Exception as e:
         logger.error(f"Error loading recommender options: {e}")
-        return {
-            "locations": ["Sector 45", "Sector 46", "Sector 47"],
-            "apartments": ["Grand Apartments", "Modern Villas", "Luxury Homes"],
-            "sectors": ["sector 45", "sector 46", "sector 47"]
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to load recommender options: {str(e)}")
 
 @router.get("/recommender/location-search")
 async def location_search(location: str = Query(..., description="Location to search from"), 
@@ -595,13 +479,7 @@ async def location_search(location: str = Query(..., description="Location to se
     
     try:
         if location_df.empty:
-            # Return mock data
-            return [
-                {"property": "Grand Apartments", "distance": 0.8},
-                {"property": "Modern Villas", "distance": 1.2},
-                {"property": "Luxury Homes", "distance": 0.5},
-                {"property": "Green Valley Apartments", "distance": 1.8}
-            ]
+            raise HTTPException(status_code=500, detail="Location data not available")
             
         if location not in location_df.columns:
             raise HTTPException(status_code=400, detail="Invalid location")
@@ -613,11 +491,7 @@ async def location_search(location: str = Query(..., description="Location to se
         return results
     except Exception as e:
         logger.error(f"Error in location search: {e}")
-        return [
-            {"property": "Grand Apartments", "distance": 0.8},
-            {"property": "Modern Villas", "distance": 1.2},
-            {"property": "Luxury Homes", "distance": 0.5}
-        ]
+        raise HTTPException(status_code=500, detail=f"Location search failed: {str(e)}")
 
 @router.get("/recommender/recommend")
 async def recommend_properties(property_name: str = Query(..., description="Property name to find similar"), 
@@ -627,17 +501,11 @@ async def recommend_properties(property_name: str = Query(..., description="Prop
     
     try:
         if location_df.empty:
-            # Return mock data
-            return [
-                {"PropertyName": "Similar Apartment A", "SimilarityScore": 0.95},
-                {"PropertyName": "Similar Apartment B", "SimilarityScore": 0.89},
-                {"PropertyName": "Similar Apartment C", "SimilarityScore": 0.82}
-            ]
+            raise HTTPException(status_code=500, detail="Location data not available")
             
         if property_name not in location_df.index:
             raise HTTPException(status_code=400, detail="Property not found")
             
-        # Calculate combined similarity scores
         cosine_sim_matrix = 0.5 * cosine_sim1 + 0.8 * cosine_sim2 + 1.0 * cosine_sim3
         idx = location_df.index.get_loc(property_name)
         sim_scores = list(enumerate(cosine_sim_matrix[idx]))
@@ -649,11 +517,7 @@ async def recommend_properties(property_name: str = Query(..., description="Prop
         return [{"PropertyName": prop, "SimilarityScore": float(score)} for prop, score in zip(top_properties, top_scores)]
     except Exception as e:
         logger.error(f"Error generating recommendations: {e}")
-        return [
-            {"PropertyName": "Similar Apartment A", "SimilarityScore": 0.95},
-            {"PropertyName": "Similar Apartment B", "SimilarityScore": 0.89},
-            {"PropertyName": "Similar Apartment C", "SimilarityScore": 0.82}
-        ]
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
 
 # Error handlers
 @app.exception_handler(HTTPException)
