@@ -10,12 +10,11 @@ export default defineConfig({
   root: './',
   build: {
     rollupOptions: {
-      input: resolve(__dirname, 'index.html')  // Now points to root index.html
+      input: resolve(__dirname, 'index.html')
     },
     outDir: 'dist'
   },
-  publicDir: 'public',  // Still serves public/ assets (e.g., favicon) to dist/
-  base: '/',  // Ensures /assets/ paths
+  publicDir: 'public',
   server: {
     port: 3000
   }
