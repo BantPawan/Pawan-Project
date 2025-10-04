@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, APIRouter
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -9,12 +9,6 @@ import numpy as np
 import os
 from datetime import datetime
 import logging
-from typing import Dict, List, Optional
-import warnings
-from sklearn.exceptions import InconsistentVersionWarning
-
-# Suppress warnings
-warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,9 +22,7 @@ STATIC_PATH = os.path.join(BASE_DIR, "static")
 app = FastAPI(
     title="Real Estate Analytics API",
     description="ML-powered real estate price prediction, analysis, and recommendation platform",
-    version="2.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    version="2.0.0"
 )
 
 # CORS middleware
@@ -42,13 +34,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API Router
-api_router = APIRouter(prefix="/api")
+# Serve static files (React build)
+app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_PATH, "assets")), name="assets")
 
-# Global variables
+# Global variables - same as your Streamlit app
 df = None
 pipeline = None
-data_viz = None
+new_df = None
 feature_text = None
 location_df = None
 cosine_sim1 = None
@@ -69,257 +61,249 @@ class PropertyInput(BaseModel):
     luxury_category: str
     floor_category: str
 
-class APIResponse(BaseModel):
-    status: str
-    message: str
-    data: Optional[Dict] = None
-    timestamp: str
-
 def load_data():
-    """Load all required datasets and models"""
-    global df, pipeline, data_viz, feature_text, location_df, cosine_sim1, cosine_sim2, cosine_sim3
+    """Load all datasets and models - same as your Streamlit app"""
+    global df, pipeline, new_df, feature_text, location_df, cosine_sim1, cosine_sim2, cosine_sim3
     
     try:
-        # Load main dataset and pipeline
+        # Load main dataset and pipeline (same as your Streamlit app)
         df = joblib.load(os.path.join(DATASET_PATH, "df.pkl"))
-        logger.info(f"✅ Main dataset loaded with {len(df)} records")
-        
         pipeline = joblib.load(os.path.join(DATASET_PATH, "pipeline_compressed.pkl"))
-        logger.info("✅ ML pipeline loaded successfully")
         
         # Load visualization data
-        data_viz = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
-        logger.info(f"✅ Visualization data loaded with {len(data_viz)} records")
+        new_df = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
         
         # Load additional data files
-        try:
-            feature_text = joblib.load(os.path.join(DATASET_PATH, "feature_text.pkl"))
-        except:
-            feature_text = "apartment flat house luxury modern contemporary"
+        feature_text = joblib.load(os.path.join(DATASET_PATH, "feature_text.pkl"))
+        location_df = joblib.load(os.path.join(DATASET_PATH, "location_distance.pkl"))
+        cosine_sim1 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim1.pkl"))
+        cosine_sim2 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim2.pkl"))
+        cosine_sim3 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim3.pkl"))
         
-        try:
-            location_df = joblib.load(os.path.join(DATASET_PATH, "location_distance.pkl"))
-        except:
-            location_df = pd.DataFrame()
-        
-        # Load cosine similarity matrices
-        try:
-            cosine_sim1 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim1.pkl"))
-            cosine_sim2 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim2.pkl"))
-            cosine_sim3 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim3.pkl"))
-        except:
-            # Create dummy matrices if loading fails
-            size = min(100, len(location_df) if not location_df.empty else 100)
-            cosine_sim1 = np.eye(size)
-            cosine_sim2 = np.eye(size)
-            cosine_sim3 = np.eye(size)
-        
-        logger.info("🎉 All data loaded successfully!")
+        logger.info("✅ All data loaded successfully!")
         
     except Exception as e:
         logger.error(f"❌ Error loading data: {e}")
-        # Create fallback data
-        df = pd.DataFrame({
-            'property_type': ['apartment', 'house'],
-            'sector': ['sector 1', 'sector 2'],
-            'bedRoom': [2, 3],
-            'bathroom': [2, 3],
-            'balcony': ['1', '2'],
-            'agePossession': ['New Property', '1-5 years'],
-            'servant room': [0, 1],
-            'store room': [0, 1],
-            'furnishing_type': ['Unfurnished', 'Furnished'],
-            'luxury_category': ['Low', 'Medium'],
-            'floor_category': ['Low Rise', 'Mid Rise']
-        })
-        data_viz = pd.DataFrame({
-            'sector': ['sector 1', 'sector 2'],
-            'price_per_sqft': [5000, 6000],
-            'built_up_area': [1000, 1200],
-            'latitude': [28.45, 28.46],
-            'longitude': [77.02, 77.03],
-            'property_type': ['apartment', 'house'],
-            'price': [1.2, 1.5],
-            'bedRoom': [2, 3]
-        })
+        raise RuntimeError(f"Data loading failed: {str(e)}")
 
-# Initialize data on startup
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Starting Real Estate API...")
     load_data()
 
-# Serve React app
+# Serve React app for all routes
 @app.get("/")
-async def serve_frontend():
-    if os.path.exists(os.path.join(STATIC_PATH, "index.html")):
-        return FileResponse(os.path.join(STATIC_PATH, "index.html"))
-    return {"message": "React app not built. Please run build.sh first"}
+async def serve_root():
+    index_path = os.path.join(STATIC_PATH, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "React app not built"}
 
 @app.get("/{full_path:path}")
-async def catch_all(full_path: str):
-    """Catch all routes and serve index.html for SPA routing"""
-    if os.path.exists(os.path.join(STATIC_PATH, "index.html")):
-        return FileResponse(os.path.join(STATIC_PATH, "index.html"))
+async def serve_react_app(full_path: str):
+    """Serve React app for all routes (SPA)"""
+    index_path = os.path.join(STATIC_PATH, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"message": "React app not available"}
 
-# API Routes
-@api_router.get("/", response_model=APIResponse)
-async def api_root():
-    return APIResponse(
-        status="success",
-        message="🏠 Real Estate Analytics API",
-        data={"version": "2.0.0"},
-        timestamp=datetime.now().isoformat()
-    )
-
-@api_router.get("/health")
+# API Routes - Exact same logic as your Streamlit app
+@app.get("/api/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "service": "Real Estate Analytics API",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"status": "healthy", "service": "Real Estate API"}
 
-@api_router.get("/options")
+@app.get("/api/options")
 async def get_options():
-    """Get all available options for dropdowns"""
-    if df is None:
-        raise HTTPException(status_code=500, detail="Data not loaded")
-    
-    try:
-        return {
-            "property_type": sorted(df["property_type"].unique().tolist()) if "property_type" in df.columns else ["apartment", "house"],
-            "sector": sorted(df["sector"].unique().tolist()) if "sector" in df.columns else ["sector 1", "sector 2"],
-            "bedrooms": sorted(df["bedRoom"].unique().tolist()) if "bedRoom" in df.columns else [2, 3, 4],
-            "bathroom": sorted(df["bathroom"].unique().tolist()) if "bathroom" in df.columns else [1, 2, 3],
-            "balcony": sorted(df["balcony"].unique().tolist()) if "balcony" in df.columns else ["1", "2", "3"],
-            "property_age": sorted(df["agePossession"].unique().tolist()) if "agePossession" in df.columns else ["New Property", "1-5 years"],
-            "servant_room": sorted(df["servant room"].unique().tolist()) if "servant room" in df.columns else [0, 1],
-            "store_room": sorted(df["store room"].unique().tolist()) if "store room" in df.columns else [0, 1],
-            "furnishing_type": sorted(df["furnishing_type"].unique().tolist()) if "furnishing_type" in df.columns else ["Unfurnished", "Furnished"],
-            "luxury_category": sorted(df["luxury_category"].unique().tolist()) if "luxury_category" in df.columns else ["Low", "Medium", "High"],
-            "floor_category": sorted(df["floor_category"].unique().tolist()) if "floor_category" in df.columns else ["Low Rise", "Mid Rise", "High Rise"]
-        }
-    except Exception as e:
-        logger.error(f"Error loading options: {e}")
-        # Return fallback options
-        return {
-            "property_type": ["apartment", "house"],
-            "sector": ["sector 1", "sector 2", "sector 3"],
-            "bedrooms": [2, 3, 4],
-            "bathroom": [1, 2, 3],
-            "balcony": ["1", "2", "3"],
-            "property_age": ["New Property", "1-5 years", "5-10 years"],
-            "servant_room": [0, 1],
-            "store_room": [0, 1],
-            "furnishing_type": ["Unfurnished", "Semi-Furnished", "Furnished"],
-            "luxury_category": ["Low", "Medium", "High"],
-            "floor_category": ["Low Rise", "Mid Rise", "High Rise"]
-        }
-
-@api_router.get("/stats")
-async def get_stats():
-    """Get API statistics"""
+    """Get dropdown options - same as Streamlit app"""
     return {
-        "total_properties": len(df) if df is not None else 10000,
-        "model_accuracy": "92%",
-        "sectors_covered": len(df["sector"].unique()) if df is not None and "sector" in df.columns else 50,
-        "avg_price": "₹ 1.25 Cr",
-        "last_updated": datetime.now().strftime("%Y-%m-%d")
+        "property_type": sorted(df["property_type"].unique().tolist()),
+        "sector": sorted(df["sector"].unique().tolist()),
+        "bedrooms": sorted(df["bedRoom"].unique().tolist()),
+        "bathroom": sorted(df["bathroom"].unique().tolist()),
+        "balcony": sorted(df["balcony"].unique().tolist()),
+        "property_age": sorted(df["agePossession"].unique().tolist()),
+        "servant_room": sorted(df["servant room"].unique().tolist()),
+        "store_room": sorted(df["store room"].unique().tolist()),
+        "furnishing_type": sorted(df["furnishing_type"].unique().tolist()),
+        "luxury_category": sorted(df["luxury_category"].unique().tolist()),
+        "floor_category": sorted(df["floor_category"].unique().tolist())
     }
 
-@api_router.post("/predict_price")
+@app.get("/api/stats")
+async def get_stats():
+    return {
+        "total_properties": len(df),
+        "model_accuracy": "92%",
+        "sectors_covered": len(df["sector"].unique()),
+        "avg_price": "₹ 1.25 Cr"
+    }
+
+@app.post("/api/predict_price")
 async def predict_price(input: PropertyInput):
-    """Predict property price"""
-    if pipeline is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
-    
+    """Predict property price - same logic as Streamlit app"""
     try:
-        # Create input DataFrame
-        input_df = pd.DataFrame([[
+        # Form DataFrame exactly like Streamlit
+        data = [[
             input.property_type, input.sector, input.bedrooms, input.bathroom,
             input.balcony, input.property_age, input.built_up_area,
             input.servant_room, input.store_room, input.furnishing_type,
             input.luxury_category, input.floor_category
-        ]], columns=[
+        ]]
+        columns = [
             'property_type', 'sector', 'bedRoom', 'bathroom', 'balcony',
             'agePossession', 'built_up_area', 'servant room', 'store room',
             'furnishing_type', 'luxury_category', 'floor_category'
-        ])
+        ]
 
-        # Make prediction
-        log_price = pipeline.predict(input_df)[0]
-        base_price = np.expm1(log_price)
-        
-        # Add some variance for range
-        low_price = max(0.5, base_price * 0.85)
-        high_price = base_price * 1.15
+        one_df = pd.DataFrame(data, columns=columns)
+
+        # Predict exactly like Streamlit
+        base_price = np.expm1(pipeline.predict(one_df))[0]
+        low = base_price - 0.22
+        high = base_price + 0.22
 
         return {
-            "prediction_raw": float(base_price),
-            "low_price_cr": round(low_price, 2),
-            "high_price_cr": round(high_price, 2),
-            "formatted_range": f"₹ {low_price:.2f} Cr - ₹ {high_price:.2f} Cr",
-            "timestamp": datetime.now().isoformat()
+            "low_price_cr": round(low, 2),
+            "high_price_cr": round(high, 2),
+            "formatted_range": f"₹ {round(low, 2)} Cr - ₹ {round(high, 2)} Cr"
         }
         
     except Exception as e:
         logger.error(f"Prediction error: {e}")
-        # Return demo prediction
-        return {
-            "prediction_raw": 1.35,
-            "low_price_cr": 1.25,
-            "high_price_cr": 1.45,
-            "formatted_range": "₹ 1.25 Cr - ₹ 1.45 Cr",
-            "timestamp": datetime.now().isoformat(),
-            "note": "Demo prediction - model not available"
-        }
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
-@api_router.get("/analysis/geomap")
-async def get_geomap(property_type: str = Query(None)):
-    """Get geographic map data"""
-    if data_viz is None:
-        raise HTTPException(status_code=500, detail="Data not loaded")
-    
+@app.get("/api/analysis/geomap")
+async def get_geomap():
+    """Get geomap data - same as Streamlit Analysis_App.py"""
     try:
-        filtered_data = data_viz
-        if property_type and "property_type" in data_viz.columns:
-            filtered_data = data_viz[data_viz["property_type"] == property_type]
+        # Convert numeric columns exactly like Streamlit
+        numeric_cols = ['price', 'price_per_sqft', 'built_up_area', 'latitude', 'longitude']
+        new_df[numeric_cols] = new_df[numeric_cols].apply(pd.to_numeric, errors='coerce')
         
-        # Sample data for geomap
-        sectors = filtered_data["sector"].unique()[:10] if "sector" in filtered_data.columns else ["sector 1", "sector 2"]
+        # Group by sector exactly like Streamlit
+        group_df = new_df.groupby('sector')[numeric_cols].mean().reset_index()
         
         return {
-            "sectors": sectors.tolist(),
-            "price_per_sqft": [5000, 6000, 5500, 7000, 6500][:len(sectors)],
-            "built_up_area": [1000, 1200, 1100, 1300, 1250][:len(sectors)],
-            "latitude": [28.45, 28.46, 28.47, 28.48, 28.49][:len(sectors)],
-            "longitude": [77.02, 77.03, 77.04, 77.05, 77.06][:len(sectors)],
-            "property_count": [10, 15, 8, 12, 9][:len(sectors)]
+            "sectors": group_df["sector"].tolist(),
+            "price_per_sqft": group_df["price_per_sqft"].tolist(),
+            "built_up_area": group_df["built_up_area"].tolist(),
+            "latitude": group_df["latitude"].tolist(),
+            "longitude": group_df["longitude"].tolist()
         }
     except Exception as e:
-        logger.error(f"Error in geomap: {e}")
+        logger.error(f"Geomap error: {e}")
+        raise HTTPException(status_code=500, detail=f"Geomap data failed: {str(e)}")
+
+@app.get("/api/analysis/wordcloud")
+async def get_wordcloud():
+    """Get wordcloud data - same as Streamlit"""
+    try:
+        return {"feature_text": feature_text}
+    except Exception as e:
+        logger.error(f"Wordcloud error: {e}")
+        raise HTTPException(status_code=500, detail=f"Wordcloud failed: {str(e)}")
+
+@app.get("/api/analysis/area-vs-price")
+async def get_area_vs_price(property_type: str = Query("flat")):
+    """Get area vs price data - same as Streamlit"""
+    try:
+        filtered_df = new_df[new_df['property_type'] == property_type]
         return {
-            "sectors": ["sector 1", "sector 2", "sector 3"],
-            "price_per_sqft": [5000, 6000, 5500],
-            "built_up_area": [1000, 1200, 1100],
-            "latitude": [28.45, 28.46, 28.47],
-            "longitude": [77.02, 77.03, 77.04],
-            "property_count": [10, 15, 8]
+            "built_up_area": filtered_df["built_up_area"].tolist(),
+            "price": filtered_df["price"].tolist(),
+            "bedrooms": filtered_df["bedRoom"].tolist()
         }
+    except Exception as e:
+        logger.error(f"Area vs price error: {e}")
+        raise HTTPException(status_code=500, detail=f"Area vs price failed: {str(e)}")
 
-@api_router.get("/recommender/options")
+@app.get("/api/analysis/bhk-pie")
+async def get_bhk_pie(sector: str = Query("overall")):
+    """Get BHK distribution - same as Streamlit"""
+    try:
+        if sector == "overall":
+            df_subset = new_df
+        else:
+            df_subset = new_df[new_df["sector"] == sector]
+        
+        bhk_counts = df_subset["bedRoom"].value_counts().reset_index()
+        return {
+            "bedrooms": bhk_counts["bedRoom"].tolist(),
+            "counts": bhk_counts["count"].tolist()
+        }
+    except Exception as e:
+        logger.error(f"BHK pie error: {e}")
+        raise HTTPException(status_code=500, detail=f"BHK pie failed: {str(e)}")
+
+@app.get("/api/analysis/price-dist")
+async def get_price_distribution():
+    """Get price distribution - same as Streamlit"""
+    try:
+        house_prices = new_df[new_df["property_type"] == "house"]["price"].tolist()
+        flat_prices = new_df[new_df["property_type"] == "flat"]["price"].tolist()
+        
+        return {
+            "house_prices": house_prices,
+            "flat_prices": flat_prices
+        }
+    except Exception as e:
+        logger.error(f"Price distribution error: {e}")
+        raise HTTPException(status_code=500, detail=f"Price distribution failed: {str(e)}")
+
+@app.get("/api/recommender/options")
 async def get_recommender_options():
-    """Get recommender options"""
-    return {
-        "locations": ["Sector 45", "Sector 46", "Sector 47", "Sector 48"],
-        "apartments": ["Grand Apartments", "Modern Villas", "Luxury Homes", "Green Valley"],
-        "sectors": ["sector 45", "sector 46", "sector 47", "sector 48"]
-    }
+    """Get recommender options - same as Streamlit"""
+    try:
+        return {
+            "locations": sorted(location_df.columns.tolist()),
+            "apartments": sorted(location_df.index.tolist()),
+            "sectors": sorted(new_df["sector"].unique().tolist())
+        }
+    except Exception as e:
+        logger.error(f"Recommender options error: {e}")
+        raise HTTPException(status_code=500, detail=f"Recommender options failed: {str(e)}")
 
-# Include API router
-app.include_router(api_router)
+@app.get("/api/recommender/location-search")
+async def location_search(
+    location: str = Query(..., description="Location to search from"), 
+    radius: float = Query(..., description="Search radius in kilometers")
+):
+    """Search properties within radius - same as Streamlit"""
+    try:
+        if radius > 0:
+            result_ser = location_df[location_df[location] < radius * 1000][location].sort_values()
+            results = [{"property": key, "distance": round(value / 1000)} for key, value in result_ser.items()]
+            return results
+        else:
+            raise HTTPException(status_code=400, detail="Please enter a valid radius.")
+    except Exception as e:
+        logger.error(f"Location search error: {e}")
+        raise HTTPException(status_code=500, detail=f"Location search failed: {str(e)}")
+
+@app.get("/api/recommender/recommend")
+async def recommend_properties(
+    property_name: str = Query(..., description="Property name to find similar"), 
+    top_n: int = Query(5, description="Number of recommendations")
+):
+    """Get property recommendations - same as Streamlit"""
+    try:
+        # Combine cosine similarity matrices exactly like Streamlit
+        cosine_sim_matrix = 0.5 * cosine_sim1 + 0.8 * cosine_sim2 + 1.0 * cosine_sim3
+
+        # Get similarity scores exactly like Streamlit
+        sim_scores = list(enumerate(cosine_sim_matrix[location_df.index.get_loc(property_name)]))
+        sorted_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+        # Get top properties exactly like Streamlit
+        top_indices = [i[0] for i in sorted_scores[1:top_n + 1]]
+        top_scores = [i[1] for i in sorted_scores[1:top_n + 1]]
+        top_properties = location_df.index[top_indices].tolist()
+
+        return [{"PropertyName": prop, "SimilarityScore": float(score)} for prop, score in zip(top_properties, top_scores)]
+        
+    except Exception as e:
+        logger.error(f"Recommendation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
