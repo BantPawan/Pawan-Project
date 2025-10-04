@@ -9,9 +9,7 @@ import numpy as np
 import os
 from datetime import datetime
 import logging
-import asyncio
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,6 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,10 +31,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files
 app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_PATH, "assets")), name="assets")
 
-# Global variables
 df = None
 pipeline = None
 new_df = None
@@ -63,18 +58,14 @@ class PropertyInput(BaseModel):
     floor_category: str
 
 def load_data():
-    """Load all datasets and models"""
     global df, pipeline, new_df, feature_text, location_df, cosine_sim1, cosine_sim2, cosine_sim3, data_loaded
     
     try:
         logger.info("🔄 Loading datasets...")
         
-        # Load essential data
         df = joblib.load(os.path.join(DATASET_PATH, "df.pkl"))
-        pipeline = joblib.load(os.path.join(DASET_PATH, "pipeline_compressed.pkl"))
+        pipeline = joblib.load(os.path.join(DATASET_PATH, "pipeline_compressed.pkl"))
         new_df = pd.read_csv(os.path.join(DATASET_PATH, "data_viz1.csv"))
-        
-        # Load additional data
         feature_text = joblib.load(os.path.join(DATASET_PATH, "feature_text.pkl"))
         location_df = joblib.load(os.path.join(DATASET_PATH, "location_distance.pkl"))
         cosine_sim1 = joblib.load(os.path.join(DATASET_PATH, "cosine_sim1.pkl"))
@@ -86,29 +77,13 @@ def load_data():
         
     except Exception as e:
         logger.error(f"❌ Error loading data: {e}")
-        # Create minimal data for basic functionality
-        df = pd.DataFrame({
-            'property_type': ['flat', 'house'],
-            'sector': ['sector 1', 'sector 2'],
-            'bedRoom': [2, 3],
-            'bathroom': [2, 3],
-            'balcony': ['1', '2'],
-            'agePossession': ['New Property', '1-5 years'],
-            'servant room': [0, 1],
-            'store room': [0, 1],
-            'furnishing_type': ['Unfurnished', 'Furnished'],
-            'luxury_category': ['Low', 'Medium'],
-            'floor_category': ['Low Rise', 'Mid Rise']
-        })
-        data_loaded = True
+        data_loaded = False
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Starting Real Estate API...")
-    # Load data synchronously to ensure it's ready
     load_data()
 
-# Serve React app
 @app.get("/")
 async def serve_root():
     index_path = os.path.join(STATIC_PATH, "index.html")
@@ -123,7 +98,6 @@ async def serve_react_app(full_path: str):
         return FileResponse(index_path)
     return {"message": "React app not available"}
 
-# API Routes
 @app.get("/api/health")
 async def health_check():
     return {
@@ -219,7 +193,6 @@ async def get_geomap():
 async def get_wordcloud():
     if not data_loaded:
         raise HTTPException(status_code=503, detail="Data loading, please wait")
-    
     return {"feature_text": feature_text}
 
 @app.get("/api/analysis/area-vs-price")
