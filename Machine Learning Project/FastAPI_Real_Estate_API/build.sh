@@ -1,18 +1,14 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
 echo "🚀 Starting build process..."
-
-# Show current directory for debug
-echo "Working dir: $(pwd)"
-echo "Listing:"
-ls -la
+echo "Current directory: $(pwd)"
 
 # Build frontend
 echo "📦 Building React frontend..."
 cd frontend
 
-# Install dependencies if node_modules doesn't exist
+# Install dependencies
 if [ ! -d "node_modules" ]; then
     echo "Installing frontend dependencies..."
     npm install
@@ -21,23 +17,26 @@ fi
 echo "🔨 Building React app..."
 npm run build
 
-# Move back to root
+# Return to root
 cd ..
 
 # Install backend dependencies
 echo "🐍 Installing backend dependencies..."
 pip install -r backend/requirements.txt
 
-# Create backend static directory
+# Create and clean static directory
 echo "📁 Setting up static files..."
+rm -rf backend/static
 mkdir -p backend/static
 
-# Copy ALL built files from frontend/dist to backend/static
-echo "Copying built files..."
-cp -r frontend/dist/* backend/static/ 2>/dev/null || echo "Some files not copied, continuing..."
+# Copy ALL files from frontend/dist to backend/static
+echo "📋 Copying built files..."
+cp -r frontend/dist/* backend/static/
 
-# Debug: List static contents
-echo "📋 Backend static contents:"
-ls -la backend/static/ || echo "Static directory might be empty"
+# Verify the files were copied
+echo "📁 Backend static contents:"
+ls -la backend/static/
+echo "📁 Assets directory:"
+ls -la backend/static/assets/ 2>/dev/null || echo "No assets directory"
 
 echo "🎉 Build completed successfully!"
