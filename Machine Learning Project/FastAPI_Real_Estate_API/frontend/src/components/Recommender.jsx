@@ -1,44 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRealEstateAPI } from '../hooks/useRealEstateAPI';
 
 const Recommender = () => {
+  const { loadAnalysisData } = useRealEstateAPI();
   const [searchType, setSearchType] = useState('location');
+  const [recommenderOptions, setRecommenderOptions] = useState({});
+  const [location, setLocation] = useState('');
+  const [radius, setRadius] = useState(1.0);
+  const [propertyName, setPropertyName] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const mockLocationSearch = () => {
-    return [
-      { property: "Grand Apartments", distance: 0.8 },
-      { property: "Modern Villas", distance: 1.2 },
-      { property: "Luxury Homes", distance: 0.5 },
-      { property: "Green Valley Apartments", distance: 1.8 }
-    ];
-  };
-
-  const mockSimilarProperties = () => {
-    return [
-      { PropertyName: "Similar Apartment A", SimilarityScore: 0.95 },
-      { PropertyName: "Similar Apartment B", SimilarityScore: 0.89 },
-      { PropertyName: "Similar Apartment C", SimilarityScore: 0.82 },
-      { PropertyName: "Similar Apartment D", SimilarityScore: 0.78 }
-    ];
-  };
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const data = await loadAnalysisData('/api/recommender/options');
+        setRecommenderOptions(data);
+        if (data.locations?.length > 0) {
+          setLocation(data.locations[0]);
+        }
+        if (data.apartments?.length > 0) {
+          setPropertyName(data.apartments[0]);
+        }
+      } catch (err) {
+        console.log('Using mock recommender options');
+        setRecommenderOptions({
+          locations: ["Sector 45", "Sector 46", "Sector 47"],
+          apartments: ["Grand Apartments", "Modern Villas", "Luxury Homes"],
+          sectors: ["sector 45", "sector 46", "sector 47"]
+        });
+        setLocation("Sector 45");
+        setPropertyName("Grand Apartments");
+      }
+    };
+    loadOptions();
+  }, [loadAnalysisData]);
 
   const handleLocationSearch = async () => {
+    if (!location || !radius) return;
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setResults(mockLocationSearch());
+    try {
+      const endpoint = `/api/recommender/location-search?location=${encodeURIComponent(location)}&radius=${radius}`;
+      const data = await loadAnalysisData(endpoint);
+      setResults(data);
+    } catch (err) {
+      console.error(err);
+      setResults([
+        { property: "Grand Apartments", distance: 0.8 },
+        { property: "Modern Villas", distance: 1.2 },
+        { property: "Luxury Homes", distance: 0.5 },
+        { property: "Green Valley Apartments", distance: 1.8 }
+      ]);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleSimilarSearch = async () => {
+    if (!propertyName) return;
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setResults(mockSimilarProperties());
+    try {
+      const endpoint = `/api/recommender/recommend?property_name=${encodeURIComponent(propertyName)}&top_n=5`;
+      const data = await loadAnalysisData(endpoint);
+      setResults(data);
+    } catch (err) {
+      console.error(err);
+      setResults([
+        { PropertyName: "Similar Apartment A", SimilarityScore: 0.95 },
+        { PropertyName: "Similar Apartment B", SimilarityScore: 0.89 },
+        { PropertyName: "Similar Apartment C", SimilarityScore: 0.82 },
+        { PropertyName: "Similar Apartment D", SimilarityScore: 0.78 }
+      ]);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -70,18 +105,18 @@ const Recommender = () => {
               <h3>Find Properties Near Location</h3>
               <div className="form-group">
                 <label>Location</label>
-                <select>
-                  <option>Sector 45</option>
-                  <option>Sector 46</option>
-                  <option>Sector 47</option>
+                <select value={location} onChange={(e) => setLocation(e.target.value)}>
+                  {recommenderOptions.locations?.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  )) || <option>Loading...</option>}
                 </select>
               </div>
               <div className="form-group">
                 <label>Radius (km)</label>
-                <select>
-                  <option>0.5</option>
-                  <option>1.0</option>
-                  <option>2.0</option>
+                <select value={radius} onChange={(e) => setRadius(parseFloat(e.target.value))}>
+                  <option value={0.5}>0.5</option>
+                  <option value={1.0}>1.0</option>
+                  <option value={2.0}>2.0</option>
                 </select>
               </div>
               <button 
@@ -99,10 +134,10 @@ const Recommender = () => {
               <h3>Find Similar Properties</h3>
               <div className="form-group">
                 <label>Select Property</label>
-                <select>
-                  <option>Grand Apartments - 3BHK</option>
-                  <option>Modern Villas - 4BHK</option>
-                  <option>Luxury Homes - 3BHK</option>
+                <select value={propertyName} onChange={(e) => setPropertyName(e.target.value)}>
+                  {recommenderOptions.apartments?.map((apt) => (
+                    <option key={apt} value={apt}>{apt}</option>
+                  )) || <option>Loading...</option>}
                 </select>
               </div>
               <button 
