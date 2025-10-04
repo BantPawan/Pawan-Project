@@ -4,6 +4,12 @@ import { useRealEstateAPI } from '../hooks/useRealEstateAPI';
 const Hero = () => {
   const { stats } = useRealEstateAPI();
 
+  // Helper to format with + for large numbers
+  const formatWithPlus = (value, fallback, threshold = 1000) => {
+    if (!value || value < threshold) return fallback || value;
+    return value.toLocaleString() + '+';
+  };
+
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -24,7 +30,7 @@ const Hero = () => {
           <div className="hero-stats">
             <div className="stat">
               <div className="stat-number">
-                {stats.total_properties ? stats.total_properties.toLocaleString() : '10,000+'}
+                {formatWithPlus(stats.total_properties, '10,000+')}
               </div>
               <div className="stat-label">Properties Analyzed</div>
             </div>
@@ -36,7 +42,7 @@ const Hero = () => {
             </div>
             <div className="stat">
               <div className="stat-number">
-                {stats.sectors_covered || '50+'}
+                {formatWithPlus(stats.sectors_covered, '50+')}
               </div>
               <div className="stat-label">Sectors Covered</div>
             </div>
