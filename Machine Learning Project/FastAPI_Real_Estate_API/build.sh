@@ -5,19 +5,20 @@ echo "🚀 Starting build process..."
 
 # Show current directory for debug
 echo "Working dir: $(pwd)"
-echo "Listing repo root:"
+echo "Listing:"
 ls -la
 
 # Build frontend
-echo "📦 Installing frontend dependencies..."
+echo "📦 Building React frontend..."
 cd frontend
-if [ -f package-lock.json ]; then
-  npm ci
-else
-  npm install
+
+# Install dependencies if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    echo "Installing frontend dependencies..."
+    npm install
 fi
 
-echo "🔨 Building React frontend..."
+echo "🔨 Building React app..."
 npm run build
 
 # Move back to root
@@ -31,17 +32,12 @@ pip install -r backend/requirements.txt
 echo "📁 Setting up static files..."
 mkdir -p backend/static
 
-# Copy built files: index.html to root of static/, assets/ to static/assets/
-cp frontend/dist/index.html backend/static/index.html
-cp -r frontend/dist/assets backend/static/assets 2>/dev/null || echo "No assets dir (fine for first build)"
-# Copy any public/ leftovers (e.g., favicon) if needed
-if [ -d "frontend/dist/*.ico" ] || [ -d "frontend/public" ]; then
-  cp -r frontend/public/* backend/static/ 2>/dev/null || true
-fi
+# Copy ALL built files from frontend/dist to backend/static
+echo "Copying built files..."
+cp -r frontend/dist/* backend/static/ 2>/dev/null || echo "Some files not copied, continuing..."
 
 # Debug: List static contents
 echo "📋 Backend static contents:"
-ls -la backend/static/
-ls -la backend/static/assets/ 2>/dev/null || echo "No assets yet"
+ls -la backend/static/ || echo "Static directory might be empty"
 
 echo "🎉 Build completed successfully!"
