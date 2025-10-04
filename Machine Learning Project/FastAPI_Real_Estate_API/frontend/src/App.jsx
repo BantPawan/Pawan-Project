@@ -1,5 +1,4 @@
 import React from 'react';
-import 'react-plotly.js/dist/plotly-basic.css';  // Plotly styling
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import TechStack from './components/TechStack';
