@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Use absolute path for Dataset
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_PATH = os.path.join(BASE_DIR, "Dataset")
+STATIC_PATH = os.path.join(BASE_DIR, "static")
 
 app = FastAPI(
     title="Real Estate Analytics API",
@@ -37,7 +38,7 @@ app.add_middleware(
 )
 
 # Serve static files for React frontend
-app.mount("/static", StaticFiles(directory="../frontend/dist/assets"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
 
 class PropertyInput(BaseModel):
     property_type: str
@@ -202,11 +203,11 @@ async def startup_event():
 # Serve React app
 @app.get("/")
 async def serve_frontend():
-    return FileResponse('../frontend/dist/index.html')
+    return FileResponse(os.path.join(STATIC_PATH, "index.html"))
 
 @app.get("/{full_path:path}")
 async def serve_frontend_path(full_path: str):
-    return FileResponse('../frontend/dist/index.html')
+    return FileResponse(os.path.join(STATIC_PATH, "index.html"))
 
 # API endpoints
 @app.get("/api/", response_model=APIResponse)
