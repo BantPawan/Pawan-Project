@@ -10,6 +10,10 @@ from datetime import datetime
 import logging
 from typing import Dict, List, Optional
 
+import warnings
+from sklearn.exceptions import InconsistentVersionWarning
+warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
