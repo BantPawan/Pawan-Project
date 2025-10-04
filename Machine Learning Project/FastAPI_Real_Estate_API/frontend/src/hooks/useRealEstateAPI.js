@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+// Helper to normalize endpoint (fix double /api)
+const normalizeEndpoint = (endpoint) => {
+  let base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+  let ep = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+  if (base.endsWith('/api') && ep.startsWith('/api')) {
+    ep = ep.replace('/api', '');  // Strip extra /api
+  }
+  return base + ep;
+};
 
 export const useRealEstateAPI = () => {
   const [options, setOptions] = useState({});
@@ -15,8 +25,8 @@ export const useRealEstateAPI = () => {
   const loadInitialData = async () => {
     try {
       const [optionsData, statsData] = await Promise.all([
-        fetch(`${API_BASE}/api/options`).then(res => res.json()),
-        fetch(`${API_BASE}/api/stats`).then(res => res.json())
+        fetch(normalizeEndpoint('/api/options')).then(res => res.json()),
+        fetch(normalizeEndpoint('/api/stats')).then(res => res.json())
       ]);
       setOptions(optionsData);
       setStats(statsData);
@@ -47,7 +57,7 @@ export const useRealEstateAPI = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/predict_price`, {
+      const response = await fetch(normalizeEndpoint('/api/predict_price'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +85,7 @@ export const useRealEstateAPI = () => {
 
   const loadAnalysisData = async (endpoint) => {
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`);
+      const response = await fetch(normalizeEndpoint(endpoint));
       if (!response.ok) throw new Error(`Failed to load ${endpoint}`);
       return await response.json();
     } catch (err) {
@@ -102,6 +112,29 @@ export const useRealEstateAPI = () => {
           bedrooms: [2, 3, 4],
           counts: [30, 45, 25]
         };
+      }
+      if (endpoint.includes('recommender/options')) {
+        return {
+          locations: ["Sector 45", "Sector 46", "Sector 47"],
+          apartments: ["Grand Apartments", "Modern Villas", "Luxury Homes"],
+          sectors: ["sector 45", "sector 46", "sector 47"]
+        };
+      }
+      if (endpoint.includes('location-search')) {
+        return [
+          { property: "Grand Apartments", distance: 0.8 },
+          { property: "Modern Villas", distance: 1.2 },
+          { property: "Luxury Homes", distance: 0.5 },
+          { property: "Green Valley Apartments", distance: 1.8 }
+        ];
+      }
+      if (endpoint.includes('recommend')) {
+        return [
+          { PropertyName: "Similar Apartment A", SimilarityScore: 0.95 },
+          { PropertyName: "Similar Apartment B", SimilarityScore: 0.89 },
+          { PropertyName: "Similar Apartment C", SimilarityScore: 0.82 },
+          { PropertyName: "Similar Apartment D", SimilarityScore: 0.78 }
+        ];
       }
       return {};
     }
