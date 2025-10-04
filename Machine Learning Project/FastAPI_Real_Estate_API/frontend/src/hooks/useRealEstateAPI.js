@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 
-// Auto-detect API base URL
 const API_BASE = window.location.hostname === 'localhost' 
   ? 'http://localhost:8000/api' 
   : '/api';
@@ -8,16 +7,22 @@ const API_BASE = window.location.hostname === 'localhost'
 export const useRealEstateAPI = () => {
   const [options, setOptions] = useState({});
   const [stats, setStats] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load options and stats on component mount
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
   const loadInitialData = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
+      // Check if backend is ready
+      const healthResponse = await fetch(`${API_BASE}/health`);
+      const healthData = await healthResponse.json();
+      
+      if (!healthData.data_loaded) {
+        throw new Error('Backend is starting up, please wait...');
+      }
+
       const [optionsRes, statsRes] = await Promise.all([
         fetch(`${API_BASE}/options`).then(res => {
           if (!res.ok) throw new Error('Failed to load options');
@@ -31,11 +36,17 @@ export const useRealEstateAPI = () => {
       
       setOptions(optionsRes);
       setStats(statsRes);
+      setLoading(false);
     } catch (err) {
       console.error('Error loading initial data:', err);
-      setError('Failed to load application data');
+      setError(err.message);
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
   const predictPrice = async (formData) => {
     setLoading(true);
@@ -51,7 +62,8 @@ export const useRealEstateAPI = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Prediction failed: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Prediction failed');
       }
 
       const data = await response.json();
@@ -59,7 +71,7 @@ export const useRealEstateAPI = () => {
       return data;
     } catch (err) {
       console.error('Prediction error:', err);
-      setError('Prediction service temporarily unavailable');
+      setError(err.message);
       setLoading(false);
       throw err;
     }
@@ -69,7 +81,8 @@ export const useRealEstateAPI = () => {
     try {
       const response = await fetch(`${API_BASE}${endpoint}`);
       if (!response.ok) {
-        throw new Error(`Failed to load data: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to load data');
       }
       return await response.json();
     } catch (err) {
@@ -78,12 +91,17 @@ export const useRealEstateAPI = () => {
     }
   };
 
+  const retry = () => {
+    loadInitialData();
+  };
+
   return {
     options,
     stats,
     loading,
     error,
     predictPrice,
-    loadAnalysisData
+    loadAnalysisData,
+    retry
   };
 };
