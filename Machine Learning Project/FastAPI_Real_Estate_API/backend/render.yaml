@@ -1,1 +1,16 @@
-
+services:
+  - type: web
+    name: realestate-ai-backend
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: |
+      cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/backend/Dataset
+      sizeGB: 1
