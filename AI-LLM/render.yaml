@@ -1,22 +1,10 @@
 services:
-  # Ollama Backend (with build timeout)
   - type: web
-    name: ollama-backend
+    name: research-paper-analysis
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    buildCommand: docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t $RENDER_SERVICE_NAME .
+    healthCheckPath: /health
     envVars:
       - key: OLLAMA_HOST
         value: 0.0.0.0:11434
-
-  # Streamlit Frontend
-  - type: web
-    name: ai-llm-frontend
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
-    plan: free
-    envVars:
-      - key: OLLAMA_URL
-        value: "http://ollama-backend.internal:11434/api/generate"
