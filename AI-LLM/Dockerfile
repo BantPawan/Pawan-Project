@@ -1,15 +1,18 @@
 FROM ollama/ollama:latest
 
-# Pull base model first (ensures it's available)
-RUN ollama pull llama3.2:1b
+# Start Ollama server in background
+RUN ollama serve & \
+    # Wait for server to be ready
+    until curl -s http://localhost:11434/api/tags > /dev/null; do sleep 1; done && \
+    # Now pull the model
+    ollama pull llama3.2:1b && \
+    # Copy and create custom model
+    mkdir -p /root/.ollama && \
+    cp /app/Modelfile /root/.ollama/Modelfile && \
+    ollama create paper-analyzer -f /root/.ollama/Modelfile
 
-# Copy Modelfile and create at runtime (avoids build-time issues)
-COPY Modelfile /root/.ollama/Modelfile
-RUN ollama create paper-analyzer -f /root/.ollama/Modelfile
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:11434/api/tags || exit 1
+# Copy app files (if needed later)
+COPY . /app
 
 EXPOSE 11434
 CMD ["serve"]
