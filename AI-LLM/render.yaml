@@ -4,7 +4,7 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /api/tags
     envVars:
       - key: OLLAMA_HOST
         value: 0.0.0.0:11434
