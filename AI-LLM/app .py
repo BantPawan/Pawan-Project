@@ -1,54 +1,26 @@
+# app.py
 import streamlit as st
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_core.prompts import ChatPromptTemplate
-import os
-import textwrap
+import requests
+import PyPDF2
 import hashlib
-import pyperclip
-from PyPDF2 import PdfReader
-from dotenv import load_dotenv
-from huggingface_hub import HfApi, login
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig
-import torch
+import textwrap
+import os
+from io import BytesIO
 
-# Load environment variables
-load_dotenv()
+# --- CONFIG ---
+OLLAMA_URL = "http://localhost:11434/api/generate"  # Internal to Render
+MODEL_NAME = "paper-analyzer"
 
-# Configuration
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL = "meta-llama/Llama-2-7b-chat-hf"
-HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
-
-if not HF_TOKEN:
-    st.error("❌ HUGGINGFACEHUB_API_TOKEN not found. Please set it in your environment.")
-    st.stop()
-
-# Initialize components
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
-    separators=["\n\n", "\n", " "]
-)
-embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-
-# Initialize session state
-if 'vector_store' not in st.session_state:
+# --- SESSION STATE ---
+if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
-if 'processed' not in st.session_state:
-    st.session_state.processed = False
-if 'last_file_hash' not in st.session_state:
+if "last_file_hash" not in st.session_state:
     st.session_state.last_file_hash = None
-if 'user_name' not in st.session_state:
-    st.session_state.user_name = None
-if 'llm_pipeline' not in st.session_state:
-    st.session_state.llm_pipeline = None
+if "processed" not in st.session_state:
+    st.session_state.processed = False
 
-# Structured prompt templates
-answer_prompt = ChatPromptTemplate.from_template("""
-[INST] <<SYS>>
+# --- PROMPTS ---
+ANSWER_PROMPT = """[INST] <<SYS>>
 You are a professional academic assistant analyzing research papers. Structure your answer with these exact section headers:
 
 1. KEY CONCEPT: Identify the main concept (1-2 sentences)
@@ -63,450 +35,188 @@ Format equations using $$ for LaTeX and wrap code in ```.
 CONTEXT: {context}
 
 QUESTION: {question}
-[/INST]
-""")
+[/INST]"""
 
-summary_prompt = ChatPromptTemplate.from_template("""
-[INST] <<SYS>>
-Summarize the following research paper content in 100 words using bullet points
+SUMMARY_PROMPT = """[INST] <<SYS>>
+Summarize the following research paper content in 100 words using bullet points.
 <</SYS>>
 
 CONTEXT: {context}
-[/INST]
-""")
+[/INST]"""
 
-quiz_prompt = ChatPromptTemplate.from_template("""
-[INST] <<SYS>>
-Generate 3 true/false questions based on this content with answers explained
+QUIZ_PROMPT = """[INST] <<SYS>>
+Generate 3 true/false questions based on this content with answers explained.
 <</SYS>>
 
 CONTEXT: {context}
-[/INST]
-""")
+[/INST]"""
 
-def format_structured_response(response):
-    """Convert raw response into formatted markdown with sections"""
+# --- HELPER FUNCTIONS ---
+def get_file_hash(file_bytes: bytes) -> str:
+    return hashlib.sha256(file_bytes).hexdigest()
+
+def extract_text_from_pdf(uploaded_file) -> str:
+    pdf = PyPDF2.PdfReader(uploaded_file)
+    text = ""
+    for page in pdf.pages:
+        extracted = page.extract_text()
+        if extracted:
+            text += extracted + "\n"
+    return text.strip()
+
+def split_text(text: str, chunk_size: int = 1000, overlap: int = 200):
+    words = text.split()
+    chunks = []
+    i = 0
+    while i < len(words):
+        chunk = " ".join(words[i:i + chunk_size])
+        chunks.append(chunk)
+        i += chunk_size - overlap
+    return chunks
+
+def query_ollama(prompt: str) -> str:
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.5}
+            },
+            timeout=120
+        )
+        response.raise_for_status()
+        return response.json().get("response", "No response from model.")
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def format_response(raw: str) -> str:
     sections = {
-        "KEY CONCEPT": "",
-        "MATHEMATICAL FORMULATION": "",
-        "MATHEMATICAL INTUITION": "",
-        "PRACTICAL IMPLICATIONS": "",
-        "SUMMARY": ""
+        "KEY CONCEPT": "Not found",
+        "MATHEMATICAL FORMULATION": "No equations",
+        "MATHEMATICAL INTUITION": "No intuition",
+        "PRACTICAL IMPLICATIONS": "No implications",
+        "SUMMARY": "No summary"
     }
-
-    current_section = None
-    for line in response.split('\n'):
+    current = None
+    for line in raw.split("\n"):
         line = line.strip()
         if not line:
             continue
+        for sec in sections:
+            if sec in line.upper():
+                current = sec
+                line = line.replace(sec, "").strip()
+                break
+        if current and line:
+            sections[current] += "\n" + line
 
-        # Detect section headers
-        if "KEY CONCEPT:" in line:
-            current_section = "KEY CONCEPT"
-            line = line.replace("KEY CONCEPT:", "").strip()
-        elif "MATHEMATICAL FORMULATION:" in line:
-            current_section = "MATHEMATICAL FORMULATION"
-            line = line.replace("MATHEMATICAL FORMULATION:", "").strip()
-        elif "MATHEMATICAL INTUITION:" in line:
-            current_section = "MATHEMATICAL INTUITION"
-            line = line.replace("MATHEMATICAL INTUITION:", "").strip()
-        elif "PRACTICAL IMPLICATIONS:" in line:
-            current_section = "PRACTICAL IMPLICATIONS"
-            line = line.replace("PRACTICAL IMPLICATIONS:", "").strip()
-        elif "SUMMARY:" in line:
-            current_section = "SUMMARY"
-            line = line.replace("SUMMARY:", "").strip()
-
-        if current_section and line:
-            sections[current_section] += line + "\n\n"
-
-    # Generate formatted markdown
-    formatted = """
+    return f"""
 ## Research Paper Analysis
 
-### 🔑 Key Concept
-{key_concept}
+### Key Concept
+{sections['KEY CONCEPT']}
 
-### 📐 Mathematical Formulation
-{math_formulation}
+### Mathematical Formulation
+{sections['MATHEMATICAL FORMULATION']}
 
-### 💡 Mathematical Intuition
-{math_intuition}
+### Mathematical Intuition
+{sections['MATHEMATICAL INTUITION']}
 
-### 🚀 Practical Implications
-{practical_implications}
+### Practical Implications
+{sections['PRACTICAL IMPLICATIONS']}
 
-### 📝 Summary
-{summary}
-""".format(
-        key_concept=sections["KEY CONCEPT"] or "Not specified",
-        math_formulation=sections["MATHEMATICAL FORMULATION"] or "No equations provided",
-        math_intuition=sections["MATHEMATICAL INTUITION"] or "No intuition provided",
-        practical_implications=sections["PRACTICAL IMPLICATIONS"] or "No implications provided",
-        summary=sections["SUMMARY"] or "No summary provided"
-    )
+### Summary
+{sections['SUMMARY']}
+"""
 
-    return formatted
-
-def get_file_hash(uploaded_file):
-    """Generate hash for file content"""
-    hasher = hashlib.sha256()
-    hasher.update(uploaded_file.getvalue())
-    return hasher.hexdigest()
-
-def process_files(uploaded_files):
-    """Process uploaded PDF files and create vector store"""
-    try:
-        all_text = ""
-        for uploaded_file in uploaded_files:
-            # Check if file has changed
-            current_hash = get_file_hash(uploaded_file)
-            if st.session_state.last_file_hash == current_hash:
-                st.info("File already processed. Using cached data.")
-                return True
-            st.session_state.last_file_hash = current_hash
-
-            # Read PDF
-            pdf_reader = PdfReader(uploaded_file)
-            for page in pdf_reader.pages:
-                all_text += page.extract_text() or ""
-
-        if not all_text.strip():
-            st.error("❌ No text extracted from PDFs")
-            return False
-
-        # Split text
-        chunks = text_splitter.split_text(all_text)
-
-        # Create vector store
-        with st.spinner("🔧 Creating knowledge base..."):
-            vectorstore = FAISS.from_texts(chunks, embeddings)
-            st.session_state.vector_store = vectorstore
-            st.success(f"✅ Processed {len(chunks)} document chunks")
-            return True
-    except Exception as e:
-        st.error(f"❌ File processing failed: {str(e)}")
-        return False
-
-def initialize_model():
-    if st.session_state.llm_pipeline is not None:
-        return True
-
-    try:
-        login(token=HF_TOKEN, add_to_git_credential=True)
-        os.environ["HUGGINGFACEHUB_API_TOKEN"] = HF_TOKEN
-
-        # Verify token
-        api = HfApi()
-        user_info = api.whoami(token=HF_TOKEN)
-        st.session_state.user_name = user_info['name']
-        st.sidebar.success(f"🔑 Authenticated as: {user_info['name']}")
-
-        # Load model
-        with st.spinner("🧠 Loading AI model (this may take a few minutes)..."):
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16
-            )
-
-            tokenizer = AutoTokenizer.from_pretrained(
-                LLM_MODEL,
-                padding_side="left",
-                token=HF_TOKEN
-            )
-            tokenizer.pad_token = tokenizer.eos_token
-
-            model = AutoModelForCausalLM.from_pretrained(
-                LLM_MODEL,
-                quantization_config=bnb_config,
-                device_map="auto",
-                trust_remote_code=True,
-                token=HF_TOKEN
-            )
-
-            text_generation_pipe = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                max_new_tokens=1024,
-                temperature=0.5,
-                top_p=0.9,
-                repetition_penalty=1.1,
-                do_sample=True,
-                return_full_text=False,
-                pad_token_id=tokenizer.eos_token_id
-            )
-
-            st.session_state.llm_pipeline = text_generation_pipe
-            st.success("✅ Model loaded successfully!")
-            return True
-
-    except Exception as e:
-        st.error(f"❌ Model initialization failed: {str(e)}")
-        return False
-
-def process_query(question):
-    if not st.session_state.vector_store:
-        st.error("No documents uploaded")
-        return None
-
-    try:
-        retriever = st.session_state.vector_store.as_retriever(
-            search_type="mmr",
-            search_kwargs={"k": 5}
-        )
-        docs = retriever.invoke(question)
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        formatted_prompt = answer_prompt.format(context=context, question=question)
-
-        with st.spinner("🔍 Analyzing and structuring answer..."):
-            response = st.session_state.llm_pipeline(
-                formatted_prompt,
-                max_new_tokens=1024,
-                temperature=0.5
-            )
-            raw_answer = response[0]['generated_text']
-            return format_structured_response(raw_answer)
-    except Exception as e:
-        st.error(f"❌ Query failed: {str(e)}")
-        return None
-
-def generate_summary():
-    """Generate document summary"""
-    if not st.session_state.vector_store:
-        return None
-
-    try:
-        # Get representative content
-        docs = st.session_state.vector_store.similarity_search("summary", k=5)
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        formatted_prompt = summary_prompt.format(context=context)
-
-        with st.spinner("📝 Generating summary..."):
-            response = st.session_state.llm_pipeline(
-                formatted_prompt,
-                max_new_tokens=256,
-                temperature=0.3
-            )
-            return response[0]['generated_text']
-    except Exception as e:
-        st.error(f"Summary generation failed: {str(e)}")
-        return None
-
-def generate_quiz():
-    """Generate quiz questions"""
-    if not st.session_state.vector_store:
-        return None
-
-    try:
-        # Get representative content
-        docs = st.session_state.vector_store.similarity_search("key concepts", k=5)
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        formatted_prompt = quiz_prompt.format(context=context)
-
-        with st.spinner("❓ Generating quiz questions..."):
-            response = st.session_state.llm_pipeline(
-                formatted_prompt,
-                max_new_tokens=512,
-                temperature=0.7
-            )
-            return response[0]['generated_text']
-    except Exception as e:
-        st.error(f"Quiz generation failed: {str(e)}")
-        return None
-
+# --- MAIN APP ---
 def main():
-    st.set_page_config(
-        page_title="Research Paper Q&A Assistant",
-        layout="wide",
-        page_icon="📚"
-    )
+    st.set_page_config(page_title="Research Paper Analyzer", layout="wide", page_icon="magnifying glass")
 
-    # Custom CSS
     st.markdown("""
     <style>
-    .section {
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    .key-concept {
-        background-color: #f0f8ff;
-        border-left: 5px solid #1e90ff;
-    }
-    .math-formula {
-        background-color: #f5f5f5;
-        border-left: 5px solid #696969;
-    }
-    .implications {
-        background-color: #f0fff0;
-        border-left: 5px solid #2e8b57;
-    }
-    .summary {
-        background-color: #fffaf0;
-        border-left: 5px solid #ff8c00;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 5px;
-        padding: 0.5rem 1rem;
-    }
+    .main-header {font-size: 2.5rem; color: #1E90FF; text-align: center; margin-bottom: 1rem;}
+    .section {padding: 1rem; border-radius: 10px; margin: 1rem 0; border-left: 5px solid #1E90FF;}
+    .stButton>button {background: #4CAF50; color: white; border-radius: 8px; padding: 0.5rem 1rem;}
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("📚 Research Paper Q&A Assistant")
+    st.markdown("<h1 class='main-header'>Research Paper Q&A Assistant</h1>", unsafe_allow_html=True)
+    st.markdown("**Upload a PDF or paste a URL → Ask questions → Get structured AI analysis**")
 
-    # Initialize model
-    if not initialize_model():
-        st.stop()
-
-    # File Upload
+    # --- SIDEBAR ---
     with st.sidebar:
-        st.header("📄 Document Input")
-        uploaded_files = st.file_uploader(
-            "Upload PDF research papers",
-            type="pdf",
-            accept_multiple_files=True,
-            help="Upload one or more research papers in PDF format"
-        )
-
-        if uploaded_files:
-            if st.button("Process PDFs", key="process_pdfs", type="primary"):
-                with st.spinner("Processing documents..."):
-                    if process_files(uploaded_files):
-                        st.session_state.processed = True
-                        st.rerun()
-
-        st.divider()
-        url_input = st.text_input("🌐 Or enter a research paper URL:", placeholder="https://arxiv.org/pdf/...")
-        if url_input:
-            if st.button("Process URL", key="process_url", type="primary"):
-                with st.spinner("Processing URL..."):
-                    try:
-                        loader = WebBaseLoader(url_input)
-                        docs = loader.load()
-                        if not docs or not docs[0].page_content.strip():
-                            st.error("❌ No content loaded from the provided URL")
-                        else:
-                            chunks = text_splitter.split_documents(docs)
-                            vectorstore = FAISS.from_documents(chunks, embeddings)
-                            st.session_state.vector_store = vectorstore
+        st.header("Input Source")
+        uploaded_files = st.file_uploader("Upload PDF(s)", type="pdf", accept_multiple_files=True)
+        url = st.text_input("Or enter paper URL (arXiv, etc.):", placeholder="https://arxiv.org/pdf/...")
+        
+        if st.button("Process Input", type="primary"):
+            if uploaded_files or url:
+                with st.spinner("Processing..."):
+                    if uploaded_files:
+                        all_text = ""
+                        for f in uploaded_files:
+                            current_hash = get_file_hash(f.getvalue())
+                            if st.session_state.last_file_hash == current_hash:
+                                continue
+                            text = extract_text_from_pdf(BytesIO(f.getvalue()))
+                            all_text += text + "\n\n"
+                            st.session_state.last_file_hash = current_hash
+                        if all_text.strip():
+                            st.session_state.chunks = split_text(all_text)
                             st.session_state.processed = True
-                            st.success(f"✅ Processed {len(chunks)} document chunks")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ URL processing failed: {str(e)}")
+                            st.success(f"Extracted & split into {len(st.session_state.chunks)} chunks")
+                    elif url:
+                        try:
+                            import urllib.request
+                            with urllib.request.urlopen(url) as response:
+                                if "pdf" in response.headers.get("Content-Type", ""):
+                                    text = extract_text_from_pdf(BytesIO(response.read()))
+                                else:
+                                    text = response.read().decode("utf-8")
+                            st.session_state.chunks = split_text(text)
+                            st.session_state.processed = True
+                            st.success("URL processed!")
+                        except:
+                            st.error("Failed to load URL")
+            else:
+                st.warning("Upload a file or enter a URL")
 
-    # Main content area
-    if st.session_state.get('processed', False):
-        st.success("✅ Documents ready for analysis")
+    # --- MAIN CONTENT ---
+    if st.session_state.get("processed", False):
+        st.success("Ready! Ask questions, generate summary, or quiz.")
 
-        # Question Answering
-        st.header("❓ Ask About Your Paper")
-        user_question = st.text_area(
-            "Enter your question about the research paper:",
-            placeholder="Explain the main methodology or mathematical intuition...",
-            height=120,
-            key="question_input"
-        )
+        tab1, tab2, tab3 = st.tabs(["Q&A", "Summary", "Quiz"])
 
-        if st.button("Get Answer", type="primary"):
-            answer = process_query(user_question)
-            if answer:
-                st.subheader("Analysis Results")
-                st.markdown(answer, unsafe_allow_html=True)
+        with tab1:
+            question = st.text_area("Ask about the paper:", height=100, placeholder="Explain the attention mechanism...")
+            if st.button("Analyze", type="primary"):
+                context = "\n\n".join(st.session_state.chunks[:3])  # Top 3 chunks
+                prompt = ANSWER_PROMPT.format(context=context, question=question)
+                with st.spinner("Thinking..."):
+                    raw = query_ollama(prompt)
+                    st.markdown(format_response(raw), unsafe_allow_html=True)
 
-                # Copy to clipboard
-                if st.button("📋 Copy to Clipboard", key="copy_btn"):
-                    pyperclip.copy(answer)
-                    st.toast("Answer copied to clipboard!", icon="✓")
+        with tab2:
+            if st.button("Generate Summary"):
+                context = "\n\n".join(st.session_state.chunks[:5])
+                prompt = SUMMARY_PROMPT.format(context=context)
+                with st.spinner("Summarizing..."):
+                    summary = query_ollama(prompt)
+                    st.markdown(f"<div class='section'>{textwrap.fill(summary, 80)}</div>", unsafe_allow_html=True)
 
-        # Analysis Tools
-        st.divider()
-        st.header("🔍 Analysis Tools")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("📝 Summary Generator")
-            if st.button("Generate Summary", key="summary_btn", use_container_width=True):
-                summary = generate_summary()
-                if summary:
-                    st.markdown(f"""
-                    <div class="section summary">
-                        {textwrap.fill(summary, width=80)}
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with col2:
-            st.subheader("❓ Quiz Generator")
-            if st.button("Generate Quiz", key="quiz_btn", use_container_width=True):
-                quiz = generate_quiz()
-                if quiz:
-                    st.markdown(f"""
-                    <div class="section">
-                        {textwrap.fill(quiz, width=80)}
-                    </div>
-                    """, unsafe_allow_html=True)
+        with tab3:
+            if st.button("Generate Quiz"):
+                context = "\n\n".join(st.session_state.chunks[:4])
+                prompt = QUIZ_PROMPT.format(context=context)
+                with st.spinner("Creating quiz..."):
+                    quiz = query_ollama(prompt)
+                    st.markdown(f"<div class='section'>{textwrap.fill(quiz, 80)}</div>", unsafe_allow_html=True)
     else:
-        st.info("ℹ️ Please upload PDF research papers or enter a URL to begin analysis")
-        st.image("https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&w=1200",
-                 caption="Academic Research", use_column_width=True)
+        st.info("Upload a research paper PDF or URL to begin.")
+        st.image("https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1200", use_column_width=True)
 
 if __name__ == "__main__":
     main()
-
-
-
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from huggingface_hub import login, HfApi
-
-# Replace with your Hugging Face token and model
-HF_TOKEN = "******"
-LLM_MODEL = "meta-llama/Llama-2-7b-chat-hf"
-
-# Login and check authentication
-login(token=HF_TOKEN)
-api = HfApi()
-user_info = api.whoami(token=HF_TOKEN)
-print(f"✅ Authenticated as: {user_info['name']}")
-
-# 4-bit quantization config (for faster, memory-efficient loading)
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16
-)
-
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained(
-    LLM_MODEL,
-    padding_side="left",
-    token=HF_TOKEN
-)
-tokenizer.pad_token = tokenizer.eos_token
-
-# Load model
-model = AutoModelForCausalLM.from_pretrained(
-    LLM_MODEL,
-    quantization_config=bnb_config,
-    device_map="auto",
-    trust_remote_code=True,
-    token=HF_TOKEN
-)
-
-print("✅ Model and tokenizer loaded successfully!")
-
-from PyPDF2 import PdfReader
-with open("/content/NIPS-2017-attention-is-all-you-need-Paper.pdf", "rb") as f:
-    pdf_reader = PdfReader(f)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text() + "\n"
-    print(f"Extracted {len(text)} characters")
