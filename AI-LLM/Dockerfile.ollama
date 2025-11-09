@@ -1,9 +1,7 @@
 FROM ollama/ollama:latest
 
-# Copy your Modelfile
 COPY Modelfile /root/.ollama/Modelfile
 
-# Pull the model during build (llama3.2:1b)
 RUN ollama pull llama3.2:1b && \
     ollama create paper-analyzer -f /root/.ollama/Modelfile
 
