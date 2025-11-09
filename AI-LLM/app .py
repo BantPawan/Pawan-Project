@@ -8,14 +8,13 @@ import os
 from io import BytesIO
 
 # --- CONFIG ---
-OLLAMA_URL = "http://localhost:11434/api/generate"  # Internal to Render
+# Get Ollama URL from environment variable (set in Render)
+OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434/api/generate')
 MODEL_NAME = "paper-analyzer"
 
 # --- SESSION STATE ---
-if "vector_store" not in st.session_state:
-    st.session_state.vector_store = None
-if "last_file_hash" not in st.session_state:
-    st.session_state.last_file_hash = None
+if "chunks" not in st.session_state:
+    st.session_state.chunks = []
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
@@ -52,29 +51,40 @@ CONTEXT: {context}
 [/INST]"""
 
 # --- HELPER FUNCTIONS ---
-def get_file_hash(file_bytes: bytes) -> str:
-    return hashlib.sha256(file_bytes).hexdigest()
-
 def extract_text_from_pdf(uploaded_file) -> str:
-    pdf = PyPDF2.PdfReader(uploaded_file)
-    text = ""
-    for page in pdf.pages:
-        extracted = page.extract_text()
-        if extracted:
-            text += extracted + "\n"
-    return text.strip()
+    """Extract text from PDF file with error handling"""
+    try:
+        pdf = PyPDF2.PdfReader(uploaded_file)
+        text = ""
+        for page in pdf.pages:
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
+        return text.strip()
+    except Exception as e:
+        st.error(f"Error reading PDF: {str(e)}")
+        return ""
 
-def split_text(text: str, chunk_size: int = 1000, overlap: int = 200):
+def split_text(text: str, chunk_size: int = 800, overlap: int = 100):
+    """Split text into manageable chunks"""
+    if not text:
+        return []
     words = text.split()
+    if not words:
+        return []
+    
     chunks = []
     i = 0
     while i < len(words):
         chunk = " ".join(words[i:i + chunk_size])
         chunks.append(chunk)
         i += chunk_size - overlap
+        if i >= len(words):
+            break
     return chunks
 
 def query_ollama(prompt: str) -> str:
+    """Query Ollama API with robust error handling"""
     try:
         response = requests.post(
             OLLAMA_URL,
@@ -84,139 +94,228 @@ def query_ollama(prompt: str) -> str:
                 "stream": False,
                 "options": {"temperature": 0.5}
             },
-            timeout=120
+            timeout=180  # Increased timeout for Render
         )
-        response.raise_for_status()
-        return response.json().get("response", "No response from model.")
+        
+        if response.status_code == 200:
+            return response.json().get("response", "No response from model.")
+        else:
+            return f"API Error: {response.status_code} - {response.text}"
+            
+    except requests.exceptions.Timeout:
+        return "Error: Request timeout - the AI service is taking too long to respond."
+    except requests.exceptions.ConnectionError:
+        return f"Error: Cannot connect to AI service at {OLLAMA_URL}. Please check if the backend is running."
     except Exception as e:
         return f"Error: {str(e)}"
 
 def format_response(raw: str) -> str:
+    """Format the AI response into structured sections"""
+    # Initialize sections
     sections = {
-        "KEY CONCEPT": "Not found",
-        "MATHEMATICAL FORMULATION": "No equations",
-        "MATHEMATICAL INTUITION": "No intuition",
-        "PRACTICAL IMPLICATIONS": "No implications",
-        "SUMMARY": "No summary"
+        "KEY CONCEPT": "",
+        "MATHEMATICAL FORMULATION": "", 
+        "MATHEMATICAL INTUITION": "",
+        "PRACTICAL IMPLICATIONS": "",
+        "SUMMARY": ""
     }
-    current = None
-    for line in raw.split("\n"):
+    
+    current_section = None
+    lines = raw.split('\n')
+    
+    for line in lines:
         line = line.strip()
         if not line:
             continue
-        for sec in sections:
-            if sec in line.upper():
-                current = sec
-                line = line.replace(sec, "").strip()
+            
+        # Check if this line starts a new section
+        for section in sections:
+            if line.upper().startswith(section):
+                current_section = section
+                # Remove section header from content
+                line = line[len(section):].lstrip(' :')
                 break
-        if current and line:
-            sections[current] += "\n" + line
+        else:
+            # If no section header found, check for numbered sections
+            if line.startswith('1.') and 'KEY CONCEPT' in line.upper():
+                current_section = "KEY CONCEPT"
+                line = line[2:].lstrip()
+            elif line.startswith('2.') and 'MATHEMATICAL' in line.upper():
+                current_section = "MATHEMATICAL FORMULATION" 
+                line = line[2:].lstrip()
+            elif line.startswith('3.') and 'INTUITION' in line.upper():
+                current_section = "MATHEMATICAL INTUITION"
+                line = line[2:].lstrip()
+            elif line.startswith('4.') and 'PRACTICAL' in line.upper():
+                current_section = "PRACTICAL IMPLICATIONS"
+                line = line[2:].lstrip()
+            elif line.startswith('5.') and 'SUMMARY' in line.upper():
+                current_section = "SUMMARY"
+                line = line[2:].lstrip()
+                
+        # Add content to current section
+        if current_section and line:
+            if sections[current_section]:
+                sections[current_section] += " " + line
+            else:
+                sections[current_section] = line
 
-    return f"""
-## Research Paper Analysis
-
-### Key Concept
-{sections['KEY CONCEPT']}
-
-### Mathematical Formulation
-{sections['MATHEMATICAL FORMULATION']}
-
-### Mathematical Intuition
-{sections['MATHEMATICAL INTUITION']}
-
-### Practical Implications
-{sections['PRACTICAL IMPLICATIONS']}
-
-### Summary
-{sections['SUMMARY']}
-"""
+    # Format the output
+    formatted = "## 📊 Research Paper Analysis\n\n"
+    for section, content in sections.items():
+        if content and content.strip():
+            formatted += f"### {section}\n{content.strip()}\n\n"
+        else:
+            formatted += f"### {section}\n*Information not specified in response*\n\n"
+            
+    return formatted
 
 # --- MAIN APP ---
 def main():
-    st.set_page_config(page_title="Research Paper Analyzer", layout="wide", page_icon="magnifying glass")
+    st.set_page_config(
+        page_title="Research Paper Analyzer", 
+        layout="wide", 
+        page_icon="🔍"
+    )
 
+    # Custom CSS
     st.markdown("""
     <style>
-    .main-header {font-size: 2.5rem; color: #1E90FF; text-align: center; margin-bottom: 1rem;}
-    .section {padding: 1rem; border-radius: 10px; margin: 1rem 0; border-left: 5px solid #1E90FF;}
-    .stButton>button {background: #4CAF50; color: white; border-radius: 8px; padding: 0.5rem 1rem;}
+    .main-header {
+        font-size: 2.5rem; 
+        color: #1E90FF; 
+        text-align: center; 
+        margin-bottom: 1rem;
+    }
+    .info-box {
+        padding: 1rem;
+        background-color: #f0f8ff;
+        border-radius: 10px;
+        border-left: 5px solid #1E90FF;
+        margin: 1rem 0;
+    }
+    .stButton>button {
+        background: #4CAF50; 
+        color: white; 
+        border-radius: 8px; 
+        padding: 0.5rem 1rem;
+        border: none;
+    }
+    .stButton>button:hover {
+        background: #45a049;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h1 class='main-header'>Research Paper Q&A Assistant</h1>", unsafe_allow_html=True)
-    st.markdown("**Upload a PDF or paste a URL → Ask questions → Get structured AI analysis**")
+    st.markdown("<h1 class='main-header'>🔍 Research Paper Q&A Assistant</h1>", unsafe_allow_html=True)
+    st.markdown("**Upload research papers → Ask questions → Get structured AI analysis**")
+
+    # Info box about the demo
+    st.markdown("""
+    <div class="info-box">
+    <strong>💡 Demo Note:</strong> This application uses a lightweight AI model for fast responses. 
+    For complex research papers, responses focus on key concepts and practical insights.
+    </div>
+    """, unsafe_allow_html=True)
 
     # --- SIDEBAR ---
     with st.sidebar:
-        st.header("Input Source")
-        uploaded_files = st.file_uploader("Upload PDF(s)", type="pdf", accept_multiple_files=True)
-        url = st.text_input("Or enter paper URL (arXiv, etc.):", placeholder="https://arxiv.org/pdf/...")
+        st.header("📁 Upload Research Paper")
+        uploaded_file = st.file_uploader("Choose PDF file", type="pdf")
         
-        if st.button("Process Input", type="primary"):
-            if uploaded_files or url:
-                with st.spinner("Processing..."):
-                    if uploaded_files:
-                        all_text = ""
-                        for f in uploaded_files:
-                            current_hash = get_file_hash(f.getvalue())
-                            if st.session_state.last_file_hash == current_hash:
-                                continue
-                            text = extract_text_from_pdf(BytesIO(f.getvalue()))
-                            all_text += text + "\n\n"
-                            st.session_state.last_file_hash = current_hash
-                        if all_text.strip():
-                            st.session_state.chunks = split_text(all_text)
-                            st.session_state.processed = True
-                            st.success(f"Extracted & split into {len(st.session_state.chunks)} chunks")
-                    elif url:
-                        try:
-                            import urllib.request
-                            with urllib.request.urlopen(url) as response:
-                                if "pdf" in response.headers.get("Content-Type", ""):
-                                    text = extract_text_from_pdf(BytesIO(response.read()))
-                                else:
-                                    text = response.read().decode("utf-8")
-                            st.session_state.chunks = split_text(text)
-                            st.session_state.processed = True
-                            st.success("URL processed!")
-                        except:
-                            st.error("Failed to load URL")
+        if st.button("🚀 Process Paper", type="primary", use_container_width=True):
+            if uploaded_file:
+                with st.spinner("Processing PDF..."):
+                    text = extract_text_from_pdf(uploaded_file)
+                    
+                    if text and len(text) > 100:  # Ensure meaningful content
+                        st.session_state.chunks = split_text(text)
+                        st.session_state.processed = True
+                        st.success(f"✅ Processed! Split into {len(st.session_state.chunks)} sections")
+                    else:
+                        st.error("❌ Could not extract sufficient text from PDF. Please try another file.")
             else:
-                st.warning("Upload a file or enter a URL")
+                st.warning("⚠️ Please upload a PDF file first")
 
     # --- MAIN CONTENT ---
-    if st.session_state.get("processed", False):
-        st.success("Ready! Ask questions, generate summary, or quiz.")
+    if st.session_state.get("processed", False) and st.session_state.chunks:
+        st.success("🎉 Ready! Use the tabs below to analyze the paper.")
+        
+        # Show basic info
+        total_words = sum(len(chunk.split()) for chunk in st.session_state.chunks)
+        st.caption(f"📄 Document stats: {len(st.session_state.chunks)} sections, ~{total_words} words")
 
-        tab1, tab2, tab3 = st.tabs(["Q&A", "Summary", "Quiz"])
+        tab1, tab2, tab3 = st.tabs(["💬 Q&A Analysis", "📝 Summary", "❓ Quiz"])
 
         with tab1:
-            question = st.text_area("Ask about the paper:", height=100, placeholder="Explain the attention mechanism...")
-            if st.button("Analyze", type="primary"):
-                context = "\n\n".join(st.session_state.chunks[:3])  # Top 3 chunks
-                prompt = ANSWER_PROMPT.format(context=context, question=question)
-                with st.spinner("Thinking..."):
-                    raw = query_ollama(prompt)
-                    st.markdown(format_response(raw), unsafe_allow_html=True)
+            st.subheader("Ask Questions About the Paper")
+            question = st.text_area(
+                "Enter your question:", 
+                height=100, 
+                placeholder="e.g., Explain the main methodology...\nWhat are the key findings?\nDescribe the experimental setup..."
+            )
+            
+            if st.button("🤖 Analyze", type="primary", use_container_width=True):
+                if question.strip():
+                    # Use first 3 chunks for context (adjust based on content)
+                    context = "\n\n".join(st.session_state.chunks[:3])
+                    prompt = ANSWER_PROMPT.format(context=context, question=question)
+                    
+                    with st.spinner("🔍 Analyzing paper content..."):
+                        raw_response = query_ollama(prompt)
+                        formatted_response = format_response(raw_response)
+                        st.markdown(formatted_response, unsafe_allow_html=True)
+                else:
+                    st.warning("Please enter a question")
 
         with tab2:
-            if st.button("Generate Summary"):
-                context = "\n\n".join(st.session_state.chunks[:5])
+            st.subheader("Generate Summary")
+            if st.button("📋 Generate Summary", use_container_width=True):
+                context = "\n\n".join(st.session_state.chunks[:5])  # More context for summary
                 prompt = SUMMARY_PROMPT.format(context=context)
-                with st.spinner("Summarizing..."):
+                
+                with st.spinner("📝 Generating summary..."):
                     summary = query_ollama(prompt)
-                    st.markdown(f"<div class='section'>{textwrap.fill(summary, 80)}</div>", unsafe_allow_html=True)
+                    st.markdown(f"### 📄 Paper Summary\n{summary}")
 
         with tab3:
-            if st.button("Generate Quiz"):
+            st.subheader("Generate Quiz")
+            if st.button("🎯 Generate Quiz", use_container_width=True):
                 context = "\n\n".join(st.session_state.chunks[:4])
                 prompt = QUIZ_PROMPT.format(context=context)
-                with st.spinner("Creating quiz..."):
+                
+                with st.spinner("🎲 Creating quiz questions..."):
                     quiz = query_ollama(prompt)
-                    st.markdown(f"<div class='section'>{textwrap.fill(quiz, 80)}</div>", unsafe_allow_html=True)
+                    st.markdown(f"### ❓ Comprehension Quiz\n{quiz}")
+
     else:
-        st.info("Upload a research paper PDF or URL to begin.")
-        st.image("https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1200", use_column_width=True)
+        # Welcome screen
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("""
+            ### 🎯 How to Use:
+            
+            1. **Upload** a research paper PDF in the sidebar
+            2. **Click** "Process Paper" to extract content  
+            3. **Choose** your analysis method:
+               - **Q&A**: Ask specific questions about the paper
+               - **Summary**: Get a concise overview
+               - **Quiz**: Test understanding with true/false questions
+            
+            ### 📚 Supported Content:
+            - Academic research papers
+            - Conference proceedings  
+            - Technical reports
+            - Scientific articles
+            """)
+        
+        with col2:
+            st.image(
+                "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400", 
+                use_column_width=True,
+                caption="Research Paper Analysis"
+            )
 
 if __name__ == "__main__":
     main()
