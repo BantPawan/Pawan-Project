@@ -1,10 +1,24 @@
 services:
+  # Ollama Backend Service
   - type: web
-    name: research-paper-analysis
+    name: research-paper-ollama
     env: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.ollama
     plan: free
-    healthCheckPath: /api/tags
     envVars:
       - key: OLLAMA_HOST
-        value: 0.0.0.0:11434
+        value: 0.0.0.0
+
+  # Streamlit Frontend Service  
+  - type: web
+    name: research-paper-frontend
+    env: docker
+    dockerfilePath: ./Dockerfile.streamlit
+    plan: free
+    envVars:
+      - key: OLLAMA_URL
+        fromService:
+          name: research-paper-ollama
+          type: web
+          property: host
+        # This automatically becomes: https://research-paper-ollama.onrender.com/api/generate
