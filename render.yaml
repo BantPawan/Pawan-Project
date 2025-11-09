@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: research-paper-ollama
+    env: docker
+    dockerfilePath: ./AI-LLM/Dockerfile.ollama
+    plan: free
+    envVars:
+      - key: OLLAMA_HOST
+        value: 0.0.0.0
+
+  - type: web
+    name: research-paper-frontend
+    env: docker
+    dockerfilePath: ./AI-LLM/Dockerfile.streamlit
+    plan: free
+    envVars:
+      - key: OLLAMA_URL
+        fromService:
+          name: research-paper-ollama
+          type: web
+          property: host
