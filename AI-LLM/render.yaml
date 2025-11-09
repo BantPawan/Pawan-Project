@@ -3,7 +3,7 @@ services:
   - type: web
     name: research-paper-ollama
     env: docker
-    dockerfilePath: ./Dockerfile.ollama
+    dockerfilePath: ./AI-LLM/Dockerfile.ollama
     plan: free
     envVars:
       - key: OLLAMA_HOST
@@ -13,7 +13,7 @@ services:
   - type: web
     name: research-paper-frontend
     env: docker
-    dockerfilePath: ./Dockerfile.streamlit
+    dockerfilePath: ./AI-LLM/Dockerfile.streamlit
     plan: free
     envVars:
       - key: OLLAMA_URL
