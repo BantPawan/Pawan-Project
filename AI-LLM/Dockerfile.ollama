@@ -2,9 +2,5 @@ FROM ollama/ollama:latest
 
 COPY Modelfile /root/.ollama/Modelfile
 
-RUN ollama pull llama3.2:1b && \
-    ollama create paper-analyzer -f /root/.ollama/Modelfile
-
-EXPOSE 11434
-
-CMD ["ollama", "serve"]
+# Use tinyllama for speed - starts in seconds!
+CMD sh -c "ollama serve & sleep 5 && ollama pull tinyllama && ollama create paper-analyzer -f /root/.ollama/Modelfile && wait"
