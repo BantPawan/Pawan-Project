@@ -30,7 +30,7 @@ Raw data is deliberately not stored in this repository. Download the genuine IEE
 
 The same raw-row contract is carried through training, tracking, and inference. The model receives a joined transaction row, applies the fitted transformations, returns a probability, and applies the stored alert threshold. The four layers below show how a transaction moves from raw data to a monitored deployment.
 
-```
+
 flowchart TB
     subgraph DATA["1 · DATA ENGINEERING"]
         direction LR
@@ -78,7 +78,6 @@ flowchart TB
     class G,H registry;
     class I,J deploy;
     class K,L,M ops;
-```
 
 The local notebook workflow implements the steps through tracking, registration, and batch inference. The registered artifact is the deployment unit for the Azure serving layer; the serving wrapper does not refit the model or learn new encodings at request time.
 
