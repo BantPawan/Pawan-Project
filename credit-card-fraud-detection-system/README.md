@@ -30,60 +30,54 @@ Raw data is deliberately not stored in this repository. Download the genuine IEE
 
 The same raw-row contract is carried through training, tracking, and inference. The model receives a joined transaction row, applies the fitted transformations, returns a probability, and applies the stored alert threshold. The four layers below show how a transaction moves from raw data to a monitored deployment.
 
-```mermaid
+```
 flowchart TB
-    subgraph DATA["1 · DATA & EXPLORATION"]
+    subgraph DATA["1 · DATA ENGINEERING"]
         direction LR
-        D1[IEEE-CIS transaction<br/>and identity data]
-        D2[Validation, manifest<br/>and TransactionID join]
-        D3[EDA and data-quality<br/>profiling]
-        D1 --> D2 --> D3
+        A["IEEE-CIS Raw Data"] --> B["Validation + Bronze / Silver / Gold"]
+        B --> C["Chronological Split + Data Versioning"]
     end
 
-    subgraph DEVELOPMENT["2 · MODEL DEVELOPMENT"]
+    subgraph MODEL["2 · MODEL DEVELOPMENT"]
         direction LR
-        M1[Chronological<br/>train / validation / holdout]
-        M2[Feature engineering<br/>and fitted encoders]
-        M3[GPU feature selection<br/>and stability checks]
-        M4[Model comparison,<br/>calibration and threshold]
-        M5[Frozen holdout<br/>quality gate]
-        M1 --> M2 --> M3 --> M4 --> M5
+        D["Feature Engineering + Selection"] --> E["Train + Compare Models"]
+        E --> F["Evaluation + Quality Gate"]
     end
 
-    subgraph DELIVERY["3 · DEPLOYMENT"]
+    subgraph REGISTRY["3 · TRACKING & MODEL REGISTRY"]
         direction LR
-        P1[MLflow tracking<br/>and lineage]
-        P2[Registered model<br/>ieee_cis_fraud_detector]
-        P3[Container image<br/>and Azure Container Registry]
-        P4[Azure ML endpoint<br/>or batch scoring]
-        P1 --> P2 --> P3 --> P4
+        G["MLflow Experiment Tracking"] --> H["Register Approved Model"]
     end
 
-    subgraph OPERATIONS["4 · OPERATIONS"]
+    subgraph DEPLOY["4 · TESTING & DEPLOYMENT"]
         direction LR
-        O1[Azure Monitor<br/>and Application Insights]
-        O2[Drift, latency,<br/>schema and alert checks]
-        O3[Delayed labels,<br/>retraining trigger]
-        O1 --> O2 --> O3
+        I["GitHub Actions + Tests"] --> J["Docker + Azure ML Endpoint"]
     end
 
-    D3 --> M1
-    M5 --> P1
-    P4 --> O1
-    O3 -. new candidate .-> M3
+    subgraph MONITOR["5 · MONITORING & CONTINUOUS IMPROVEMENT"]
+        direction LR
+        K["Predictions + Logs"] --> L["Drift + Performance + Alerts"]
+        L --> M["Retraining Decision"]
+    end
 
-    classDef data fill:#E8F1FF,stroke:#5B8DEF,color:#173B72,stroke-width:1.5px;
-    classDef development fill:#F0E9FF,stroke:#8B6CE8,color:#3E2D70,stroke-width:1.5px;
-    classDef delivery fill:#FFF3D6,stroke:#E4A62A,color:#704A00,stroke-width:1.5px;
-    classDef operations fill:#E5F8EB,stroke:#4DBD73,color:#145C2C,stroke-width:1.5px;
-    class D1,D2,D3 data;
-    class M1,M2,M3,M4,M5 development;
-    class P1,P2,P3,P4 delivery;
-    class O1,O2,O3 operations;
-    style DATA fill:#F8FBFF,stroke:#5B8DEF,stroke-width:1.5px;
-    style DEVELOPMENT fill:#FBF9FF,stroke:#8B6CE8,stroke-width:1.5px;
-    style DELIVERY fill:#FFFCF4,stroke:#E4A62A,stroke-width:1.5px;
-    style OPERATIONS fill:#F7FFF9,stroke:#4DBD73,stroke-width:1.5px;
+    C --> D
+    E -. "Log experiments" .-> G
+    F --> H
+    H --> I
+    J --> K
+    M -. "Fresh validated data" .-> A
+
+    classDef data fill:#E8F1FF,stroke:#5B8DEF,color:#173B72;
+    classDef model fill:#F0E9FF,stroke:#8B6CE8,color:#3E2D70;
+    classDef registry fill:#E7F5FF,stroke:#3598CB,color:#145678;
+    classDef deploy fill:#FFF3D6,stroke:#E4A62A,color:#704A00;
+    classDef ops fill:#E5F8EB,stroke:#4DBD73,color:#145C2C;
+
+    class A,B,C data;
+    class D,E,F model;
+    class G,H registry;
+    class I,J deploy;
+    class K,L,M ops;
 ```
 
 The local notebook workflow implements the steps through tracking, registration, and batch inference. The registered artifact is the deployment unit for the Azure serving layer; the serving wrapper does not refit the model or learn new encodings at request time.
