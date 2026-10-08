@@ -28,28 +28,72 @@ Raw data is deliberately not stored in this repository. Download the genuine IEE
 
 ## System architecture
 
-The same raw-row contract is carried through training, tracking, and inference. The model receives a joined transaction row, applies the fitted transformations, returns a probability, and applies the stored alert threshold.
+The same raw-row contract is carried through training, tracking, and inference. The model receives a joined transaction row, applies the fitted transformations, returns a probability, and applies the stored alert threshold. The four layers below show how a transaction moves from raw data to a monitored deployment.
 
 ```mermaid
-flowchart LR
-    A[IEEE-CIS transaction CSVs] --> B[Validate files and manifest]
-    B --> C[Join on TransactionID]
-    C --> D[Chronological train / validation / holdout split]
-    D --> E[Feature engineering and fitted encoders]
-    E --> F[Feature selection and stability checks]
-    F --> G[Model comparison and bounded tuning]
-    G --> H[Probability calibration and threshold selection]
-    H --> I[Frozen holdout quality gate]
-    I --> J[MLflow run, lineage tags and model artifact]
-    J --> K[MLflow model registry]
-    K --> L[Batch scoring or prediction API]
-    L --> M[Azure container / managed online endpoint]
-    M --> N[Application Insights and data-quality monitoring]
-    N --> O[Delayed labels, drift review and retraining]
-    O --> G
+flowchart TB
+    subgraph DATA["1 · DATA & EXPLORATION"]
+        direction LR
+        D1[IEEE-CIS transaction<br/>and identity data]
+        D2[Validation, manifest<br/>and TransactionID join]
+        D3[EDA and data-quality<br/>profiling]
+        D1 --> D2 --> D3
+    end
+
+    subgraph DEVELOPMENT["2 · MODEL DEVELOPMENT"]
+        direction LR
+        M1[Chronological<br/>train / validation / holdout]
+        M2[Feature engineering<br/>and fitted encoders]
+        M3[GPU feature selection<br/>and stability checks]
+        M4[Model comparison,<br/>calibration and threshold]
+        M5[Frozen holdout<br/>quality gate]
+        M1 --> M2 --> M3 --> M4 --> M5
+    end
+
+    subgraph DELIVERY["3 · DEPLOYMENT"]
+        direction LR
+        P1[MLflow tracking<br/>and lineage]
+        P2[Registered model<br/>ieee_cis_fraud_detector]
+        P3[Container image<br/>and Azure Container Registry]
+        P4[Azure ML endpoint<br/>or batch scoring]
+        P1 --> P2 --> P3 --> P4
+    end
+
+    subgraph OPERATIONS["4 · OPERATIONS"]
+        direction LR
+        O1[Azure Monitor<br/>and Application Insights]
+        O2[Drift, latency,<br/>schema and alert checks]
+        O3[Delayed labels,<br/>retraining trigger]
+        O1 --> O2 --> O3
+    end
+
+    D3 --> M1
+    M5 --> P1
+    P4 --> O1
+    O3 -. new candidate .-> M3
+
+    classDef data fill:#E8F1FF,stroke:#5B8DEF,color:#173B72,stroke-width:1.5px;
+    classDef development fill:#F0E9FF,stroke:#8B6CE8,color:#3E2D70,stroke-width:1.5px;
+    classDef delivery fill:#FFF3D6,stroke:#E4A62A,color:#704A00,stroke-width:1.5px;
+    classDef operations fill:#E5F8EB,stroke:#4DBD73,color:#145C2C,stroke-width:1.5px;
+    class D1,D2,D3 data;
+    class M1,M2,M3,M4,M5 development;
+    class P1,P2,P3,P4 delivery;
+    class O1,O2,O3 operations;
+    style DATA fill:#F8FBFF,stroke:#5B8DEF,stroke-width:1.5px;
+    style DEVELOPMENT fill:#FBF9FF,stroke:#8B6CE8,stroke-width:1.5px;
+    style DELIVERY fill:#FFFCF4,stroke:#E4A62A,stroke-width:1.5px;
+    style OPERATIONS fill:#F7FFF9,stroke:#4DBD73,stroke-width:1.5px;
 ```
 
 The local notebook workflow implements the steps through tracking, registration, and batch inference. The registered artifact is the deployment unit for the Azure serving layer; the serving wrapper does not refit the model or learn new encodings at request time.
+
+| Layer | Responsibility | Main components |
+|---|---|---|
+| Data & exploration | Validate source files, join tables, profile quality, and preserve time order | Pandas, manifests, training-only EDA |
+| Model development | Fit transformations, select features, compare models, calibrate probabilities, and gate on holdout | scikit-learn, LightGBM, XGBoost, optional GPU acceleration |
+| Deployment | Track the artifact, register the approved version, and expose batch or online scoring | MLflow, Docker, Azure Container Registry, Azure ML |
+| Operations | Watch service health and model behavior, then start a controlled retraining cycle | Azure Monitor, Application Insights, delayed fraud labels |
 
 ## Machine-learning pipeline
 
