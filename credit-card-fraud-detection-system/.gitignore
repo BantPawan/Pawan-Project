@@ -1,0 +1,36 @@
+# Local environments and secrets
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python and notebook caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Generated project data and artifacts
+data/raw/
+data/processed/
+data/predictions/
+models/
+reports/generated/
+mlruns/
+mlartifacts/
+.mlflow/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# AI/editor/review traces
+.codex/
+codex_prompt.md
+review.md
+*.review.md

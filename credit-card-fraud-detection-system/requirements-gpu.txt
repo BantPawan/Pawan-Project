@@ -1,0 +1,3 @@
+# Optional CUDA 12.x array acceleration, compatible with the project's NumPy 1.26.
+# XGBoost and LightGBM GPU support comes with their regular project wheels.
+cupy-cuda12x==13.6.0
