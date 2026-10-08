@@ -4,7 +4,7 @@
 
 This project develops a fraud-detection workflow using the IEEE-CIS Fraud Detection dataset. It combines leakage-aware data preparation, chronological evaluation, fitted feature engineering, feature selection, model comparison, probability calibration, MLflow experiment tracking, model registration, and batch prediction.
 
-The next engineering goal is to evolve the **existing project** into a reproducible end-to-end MLOps system: validated data -> trained and versioned model -> tested deployment -> monitored predictions -> controlled retraining. **This README distinguishes the existing, documented ML workflow from the MLOps infrastructure still to be implemented.** A target architecture is not evidence that an Azure service is already running.
+
 
 
 
