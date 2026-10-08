@@ -1,0 +1,52 @@
+# Python environments and caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+
+# Local credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Editor settings
+.idea/
+.vscode/
+
+# Assistant configuration and prompt artifacts
+.codex/
+.cursor/
+.claude/
+.continue/
+.windsurf/
+.roo/
+.trae/
+.aider*
+.cursorrules
+.cursorignore
+.clinerules
+.windsurfrules
+.mcp.json
+.prompt
+.prompt/
+.prompts/
+*.prompt
+*.prompt.md
+*.instructions.md
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.github/agents/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
